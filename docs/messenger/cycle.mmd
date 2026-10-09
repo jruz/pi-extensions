@@ -1,0 +1,36 @@
+sequenceDiagram
+    actor User
+    participant A as Conversation A
+    participant B as Conversation B
+    participant Inbox as B's in-memory inbox
+
+    User->>A: Ask B for test results
+    A->>B: messenger send M1: Please report the test results.
+    B->>Inbox: Accept M1
+    B-->>A: Queue accepted (not acknowledged)
+    B->>B: Idle poll injects M1 and wakes B
+    B->>Inbox: Context includes M1, mark read
+    Note over B: B starts working on the request
+
+    A->>B: messenger send M2: Also test error cases.
+    B->>Inbox: Queue M2 while busy
+    B-->>A: Queue accepted
+    A->>B: messenger send M3: Skip the slow suite.
+    B->>Inbox: Queue M3 while busy
+    B-->>A: Queue accepted
+
+    B->>Inbox: Attempt reply to M1: All tests pass.
+    Inbox-->>B: Message NOT sent.<br/>M2 and M3 together, oldest first.<br/>Read them, reconsider your draft, then retry.
+    Note over A,B: A receives nothing from the withheld draft.<br/>No automatic resend and no acknowledgment.
+    B->>Inbox: Next model context includes checkpoint batch, mark read
+    B->>B: Incorporate the new information
+
+    B->>Inbox: Retry reply: Error tests pass, slow suite skipped.
+    Inbox-->>B: No unread messages at submission
+    B->>A: Submit explicit reply R to M1
+    A-->>B: Queue accepted
+    Note over A: M1 becomes acknowledged in A's in-memory history.<br/>Reading the reply determines task success.
+    A->>A: Idle poll delivers R<br/>message-id: R<br/>from: B's conversation UUID<br/>reply-to: M1
+    A-->>User: Report the updated test results
+
+    Note over A,Inbox: All queues and messenger history disappear on reload or shutdown.<br/>Offline recipients reject sends. No durable store or replay.

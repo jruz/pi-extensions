@@ -1,0 +1,237 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Messenger — conversation UI</title>
+    <style>
+      :root {
+        --background: #1e1e2e;
+        --surface: #181825;
+        --text: #cdd6f4;
+        --muted: #a6adc8;
+        --sender: #a6e3a1;
+        --recipient: #cba6f7;
+        --border: #45475a;
+      }
+
+      .conversation-preview {
+        margin: 0;
+        padding: 24px;
+        background: var(--background);
+        color: var(--text);
+        font-family: system-ui, sans-serif;
+      }
+
+      .conversation-preview__title {
+        margin: 0 0 12px;
+        font-size: 28px;
+      }
+
+      .conversation-preview__description {
+        margin: 0 0 24px;
+        color: var(--muted);
+        font-size: 16px;
+        line-height: 1.6;
+      }
+
+      .conversation-preview__steps {
+        display: grid;
+        gap: 32px;
+        max-width: 1600px;
+        margin: auto;
+      }
+
+      .conversation-preview__step {
+        min-width: 0;
+      }
+
+      .conversation-preview__label {
+        margin: 0 0 8px;
+        font-size: 22px;
+      }
+
+      .conversation-preview__label--sender {
+        color: var(--sender);
+      }
+
+      .conversation-preview__label--recipient {
+        color: var(--recipient);
+      }
+
+      .conversation-preview__role {
+        margin: 0 0 12px;
+        color: var(--muted);
+        font-size: 16px;
+      }
+
+      .conversation-preview__message {
+        box-sizing: border-box;
+        margin: 0;
+        padding: 24px;
+        border: 1px solid var(--border);
+        border-radius: 12px;
+        background: var(--surface);
+        font-family: ui-monospace, monospace;
+        font-size: 18px;
+        line-height: 1.65;
+        white-space: pre-wrap;
+        overflow-wrap: anywhere;
+      }
+
+      .conversation-preview__message--sender {
+        border-left: 4px solid var(--sender);
+      }
+
+      .conversation-preview__message--recipient {
+        border-left: 4px solid var(--recipient);
+      }
+
+      @media (min-width: 1100px) {
+        .conversation-preview__steps {
+          grid-template-columns: repeat(2, minmax(0, 1fr));
+        }
+
+        .conversation-preview__step--send {
+          grid-area: 1 / 1;
+        }
+
+        .conversation-preview__step--receive {
+          grid-area: 1 / 2;
+        }
+
+        .conversation-preview__step--reply {
+          grid-area: 2 / 2;
+        }
+
+        .conversation-preview__step--return {
+          grid-area: 2 / 1;
+        }
+      }
+    </style>
+  </head>
+  <body class="conversation-preview">
+    <header>
+      <h1 class="conversation-preview__title">Sending a message</h1>
+      <p class="conversation-preview__description">
+        U1 → U2 → optional reply U3 → U4. Green is conversation A; purple is
+        conversation B. If more information arrives while B works, checkpoint Q1
+        withholds its draft and returns the waiting messages together. B reads
+        them before retrying with U3. Cards contain exact output with example
+        IDs and paths; labels are not part of the output.
+      </p>
+    </header>
+    <main class="conversation-preview__steps">
+      <section
+        class="conversation-preview__step conversation-preview__step--send"
+      >
+        <h2
+          class="conversation-preview__label conversation-preview__label--sender"
+        >
+          U1 · Conversation A
+        </h2>
+        <p class="conversation-preview__role">Tool result after A sends</p>
+        <pre
+          class="conversation-preview__message conversation-preview__message--sender"
+        >
+to: bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb
+project: /project/B
+priority: normal
+message:
+Please report the test results.</pre>
+      </section>
+      <section
+        class="conversation-preview__step conversation-preview__step--receive"
+      >
+        <h2
+          class="conversation-preview__label conversation-preview__label--recipient"
+        >
+          U2 · Conversation B
+        </h2>
+        <p class="conversation-preview__role">Incoming user-message bubble</p>
+        <pre
+          class="conversation-preview__message conversation-preview__message--recipient"
+        >
+This message is from another Pi agent. Read the messenger skill before responding.
+
+message-id: 11111111-1111-4111-8111-111111111111
+from: aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa
+project: /project/A
+priority: normal
+message:
+Please report the test results.</pre>
+      </section>
+      <section
+        class="conversation-preview__step conversation-preview__step--reply"
+      >
+        <h2
+          class="conversation-preview__label conversation-preview__label--recipient"
+        >
+          U3 · Conversation B
+        </h2>
+        <p class="conversation-preview__role">
+          Tool result after B reviews waiting messages and explicitly retries
+        </p>
+        <pre
+          class="conversation-preview__message conversation-preview__message--recipient"
+        >
+to: aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa
+project: /project/A
+priority: normal
+message:
+Error tests pass; slow suite skipped.</pre>
+      </section>
+      <section
+        class="conversation-preview__step conversation-preview__step--return"
+      >
+        <h2
+          class="conversation-preview__label conversation-preview__label--sender"
+        >
+          U4 · Conversation A
+        </h2>
+        <p class="conversation-preview__role">
+          Incoming reply user-message bubble
+        </p>
+        <pre
+          class="conversation-preview__message conversation-preview__message--sender"
+        >
+message-id: 22222222-2222-4222-8222-222222222222
+from: bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb
+project: /project/B
+priority: normal
+reply-to: 11111111-1111-4111-8111-111111111111
+message:
+Error tests pass; slow suite skipped.</pre>
+      </section>
+      <section class="conversation-preview__step">
+        <h2
+          class="conversation-preview__label conversation-preview__label--recipient"
+        >
+          Q1 · Conversation B · Reply checkpoint
+        </h2>
+        <p class="conversation-preview__role">
+          B attempts to reply “All tests pass.” while two updates are waiting. A
+          receives nothing from this withheld draft.
+        </p>
+        <pre
+          class="conversation-preview__message conversation-preview__message--recipient"
+        >
+Message NOT sent. Read these waiting messages, reconsider your draft, then call messenger again to send your updated response.
+
+message-id: 33333333-3333-4333-8333-333333333333
+from: aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa
+project: /project/A
+priority: normal
+message:
+Also test error cases.
+
+message-id: 44444444-4444-4444-8444-444444444444
+from: aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa
+project: /project/A
+priority: normal
+message:
+Skip the slow suite.</pre>
+      </section>
+    </main>
+  </body>
+</html>

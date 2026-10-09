@@ -1,0 +1,36 @@
+flowchart TD
+    send([Outgoing send or reply]) --> unread{Sender has unread messages?}
+    unread -->|Yes| withhold[Withhold draft; return waiting batch as tool result]
+    withhold --> read[Next model context reads the batch]
+    read --> revise[Agent reconsiders and explicitly retries]
+    revise --> unread
+    unread -->|No| online{Recipient reachable?}
+    online -->|No| reject([Fail clearly; retain no outgoing message])
+    online -->|Yes| checkpoint{New unread messages before submission?}
+    checkpoint -->|Yes| withhold
+    checkpoint -->|No| accept[Accept message in recipient memory]
+    accept --> priority{Priority?}
+    priority -->|Normal| idle{Recipient idle?}
+    idle -->|No| wait[Accumulate in mailbox; not Pi follow-up queue]
+    wait --> recipientReply{Recipient attempts outgoing response?}
+    recipientReply -->|Yes| recipientCheckpoint[Recipient's reply checkpoint returns whole waiting batch]
+    recipientReply -->|No| settle[Wait until recipient becomes idle]
+    settle --> batch[Inject waiting messages together, oldest first]
+    idle -->|Yes| batch
+    priority -->|Urgent| steer[Pi steering at next turn boundary]
+    batch --> context[Exact delivered batch reaches model context]
+    steer --> context
+    recipientCheckpoint --> context
+    context --> readInbox[Mark batch read; recipient can revise its response]
+    readInbox --> explicit{Explicit reply?}
+    explicit -->|Yes| replyCycle[Reply follows the same checkpoint and delivery cycle]
+    explicit -->|No| local([Assistant text stays local; no acknowledgment])
+    replyCycle --> ack[Sender receives reply; original acknowledged]
+    accept -.-> stop[Reload or shutdown discards mailbox and history]
+
+    classDef ok fill:#a6e3a1,color:#1e1e2e,stroke:#1e1e2e
+    classDef action fill:#f9e2af,color:#1e1e2e,stroke:#1e1e2e
+    classDef memory fill:#cba6f7,color:#1e1e2e,stroke:#1e1e2e
+    class batch,context,ack ok
+    class withhold,revise,recipientCheckpoint,reject action
+    class accept,wait,stop memory

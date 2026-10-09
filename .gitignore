@@ -1,0 +1,5 @@
+.direnv
+node_modules/
+.pnpm-store/
+PLAN.md
+/docs/**/*.svg

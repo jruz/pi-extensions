@@ -1,0 +1,14 @@
+when:
+  - event: push
+    branch: main
+  - event: manual
+  - event: pull_request
+
+steps:
+  - name: CHECK
+    image: bash
+    environment:
+      REVISION: ${CI_COMMIT_SHA}
+    commands:
+      - nix develop --command just setup
+      - nix develop --command just check

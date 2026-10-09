@@ -1,0 +1,112 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Messenger — peers UI</title>
+    <style>
+      :root {
+        --background: #1e1e2e;
+        --surface: #181825;
+        --text: #cdd6f4;
+        --muted: #a6adc8;
+        --accent: #a6e3a1;
+        --border: #45475a;
+      }
+
+      .peers-preview {
+        margin: 0;
+        padding: 24px;
+        background: var(--background);
+        color: var(--text);
+        font-family: system-ui, sans-serif;
+      }
+
+      .peers-preview__title {
+        margin: 0 0 12px;
+        font-size: 28px;
+      }
+
+      .peers-preview__description {
+        margin: 0 0 24px;
+        color: var(--muted);
+        font-size: 16px;
+        line-height: 1.6;
+      }
+
+      .peers-preview__examples {
+        display: grid;
+        gap: 32px;
+        max-width: 1600px;
+        margin: auto;
+      }
+
+      .peers-preview__example {
+        min-width: 0;
+      }
+
+      .peers-preview__label {
+        margin: 0 0 8px;
+        color: var(--accent);
+        font-size: 22px;
+      }
+
+      .peers-preview__role {
+        margin: 0 0 12px;
+        color: var(--muted);
+        font-size: 16px;
+      }
+
+      .peers-preview__output {
+        box-sizing: border-box;
+        margin: 0;
+        padding: 24px;
+        border: 1px solid var(--border);
+        border-left: 4px solid var(--accent);
+        border-radius: 12px;
+        background: var(--surface);
+        font-family: ui-monospace, monospace;
+        font-size: 18px;
+        line-height: 1.65;
+        white-space: pre-wrap;
+        overflow-wrap: anywhere;
+      }
+    </style>
+  </head>
+  <body class="peers-preview">
+    <header>
+      <h1 class="peers-preview__title">Discovering peers</h1>
+      <p class="peers-preview__description">
+        messenger peers lists only running conversations, excluding yourself.
+        Use the full ID to send a message. Conversations in the same project
+        have distinct IDs. Offline agents are not listed; sending to them fails.
+        Cards contain exact tool output with example IDs and paths.
+      </p>
+    </header>
+    <main class="peers-preview__examples">
+      <section class="peers-preview__example">
+        <h2 class="peers-preview__label">Online conversations</h2>
+        <p class="peers-preview__role">Tool result after messenger peers</p>
+        <pre class="peers-preview__output">
+id: aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa
+project: /home/user/dev/projects/tools
+status: idle
+
+id: bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb
+project: /home/user/dev/projects/server
+status: busy
+
+id: cccccccc-cccc-4ccc-8ccc-cccccccccccc
+project: /home/user/dev/projects/tools
+status: busy</pre>
+      </section>
+      <section class="peers-preview__example">
+        <h2 class="peers-preview__label">No other online conversations</h2>
+        <p class="peers-preview__role">
+          Tool result when no other conversations are running
+        </p>
+        <pre class="peers-preview__output">No online peers.</pre>
+      </section>
+    </main>
+  </body>
+</html>

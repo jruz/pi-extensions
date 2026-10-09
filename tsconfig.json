@@ -1,0 +1,17 @@
+{
+  "extends": "@tsconfig/strictest/tsconfig.json",
+  "compilerOptions": {
+    "lib": ["ESNext"],
+    "target": "ESNext",
+    "module": "NodeNext",
+    "moduleDetection": "force",
+    "allowJs": true,
+
+    "moduleResolution": "NodeNext",
+    "erasableSyntaxOnly": true,
+    "types": ["node", "bun"],
+    "allowImportingTsExtensions": true,
+    "verbatimModuleSyntax": true,
+    "noEmit": true
+  }
+}
