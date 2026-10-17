@@ -2,7 +2,6 @@ import { describe, expect, test } from "vitest";
 import { visibleWidth } from "@earendil-works/pi-tui";
 import { resolvePiLogDirectory } from "../extensions/shared/log-path.ts";
 import {
-  calculateTokenSpeed,
   formatDisplayPath,
   formatDuration,
   formatPercent,
@@ -16,7 +15,6 @@ import {
   renderProgressBar,
   renderColoredBar,
   renderRuntimeLine,
-  renderSpeedLine,
 } from "../extensions/status-line.ts";
 
 describe("Pi log path", () => {
@@ -208,43 +206,6 @@ describe("status line formatting", () => {
     });
     expect(parseInvalidPayload).toThrow();
     expect(duration).toBe("1h");
-  });
-
-  test("calculates speed from the first output rather than request start", () => {
-    const speed = calculateTokenSpeed(240, 10_000, 15_000);
-    expect(speed).toBe(48);
-  });
-
-  test("cannot measure speed without streamed output or final tokens", () => {
-    const withoutOutput = calculateTokenSpeed(240, undefined, 15_000);
-    const withoutTokens = calculateTokenSpeed(0, 10_000, 15_000);
-    const withoutDuration = calculateTokenSpeed(240, 10_000, 10_000);
-    expect(withoutOutput).toBeUndefined();
-    expect(withoutTokens).toBeUndefined();
-    expect(withoutDuration).toBeUndefined();
-  });
-
-  test("renders speed in the first column with muted label and text value", () => {
-    const theme = (color: string, text: string) =>
-      color === "muted" ? `\u001b[2m${text}\u001b[0m` : text;
-    const line = renderSpeedLine(theme, 48.24, 80);
-    const lineWidth = visibleWidth(line);
-    expect(line).toContain("\u001b[2mSpeed:\u001b[0m 48.2 tok/s");
-    expect(lineWidth).toBe(35);
-  });
-
-  test("renders unavailable speed explicitly", () => {
-    const theme = (_color: string, text: string) => text;
-    const line = renderSpeedLine(theme, undefined, 80);
-    const text = line.trimEnd();
-    expect(text).toBe("Speed: -- tok/s");
-  });
-
-  test("truncates speed to the terminal width", () => {
-    const theme = (_color: string, text: string) => text;
-    const line = renderSpeedLine(theme, 48.2, 10);
-    const lineWidth = visibleWidth(line);
-    expect(lineWidth).toBeLessThanOrEqual(10);
   });
 
   test("counts plan checkboxes", () => {

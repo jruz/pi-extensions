@@ -67,7 +67,6 @@ type FooterState = Readonly<{
   usage: ModuleState<UsageLimits>;
   plan: PlanState;
   activeTools: readonly string[];
-  tokenSpeed: number | undefined;
 }>;
 
 const clampPercent = (percent: number): number => {
@@ -96,17 +95,6 @@ export const formatTokens = (tokens: number): string => {
   if (tokens < 1000) return `${tokens}`;
   if (tokens < 1_000_000) return `${(tokens / 1000).toFixed(1)}k`;
   return `${(tokens / 1_000_000).toFixed(1)}m`;
-};
-
-export const calculateTokenSpeed = (
-  outputTokens: number,
-  firstOutputAt: number | undefined,
-  finishedAt: number,
-): number | undefined => {
-  if (firstOutputAt === undefined || outputTokens <= 0) return;
-  const elapsedMs = finishedAt - firstOutputAt;
-  if (elapsedMs <= 0) return;
-  return outputTokens / (elapsedMs / 1000);
 };
 
 export const parsePlanProgress = (content: string): PlanProgress => {
@@ -444,18 +432,6 @@ export const renderRuntimeLine = (
   return truncateToWidth(`${left}${middle}${right}`, width);
 };
 
-export const renderSpeedLine = (
-  fg: RuntimeForeground,
-  tokenSpeed: number | undefined,
-  width: number,
-): string => {
-  const label = fg("muted", "Speed:");
-  const value = tokenSpeed === undefined ? "--" : tokenSpeed.toFixed(1);
-  const speed = `${label} ${fg("text", `${value} tok/s`)}`;
-  const column = renderColumn(speed, LEFT_COLUMN_WIDTH);
-  return truncateToWidth(column, width);
-};
-
 const renderUsage = (
   theme: Parameters<
     NonNullable<Parameters<NonNullable<ExtensionContext["ui"]["setFooter"]>>[0]>
@@ -589,13 +565,7 @@ const renderFooter = (
     hookStatus,
     width,
   );
-  const fourth = renderSpeedLine(renderForeground, state.tokenSpeed, width);
-  return [
-    truncateToWidth(first, width),
-    truncateToWidth(second, width),
-    third,
-    fourth,
-  ];
+  return [truncateToWidth(first, width), truncateToWidth(second, width), third];
 };
 
 const readJson = (response: Response): Promise<unknown> => response.json();
@@ -626,46 +596,13 @@ const fetchUsageLimits = async (
 
 export default function (pi: ExtensionAPI): void {
   let activeTools = new Map<string, string>();
-  let firstOutputAt: number | undefined;
-  let tokenSpeed: number | undefined;
   let requestRender: () => void = () => undefined;
   let refreshLimits: () => Promise<void> = () => Promise.resolve();
   let refreshPlan: () => Promise<void> = () => Promise.resolve();
 
-  pi.on("message_start", (event) => {
-    if (event.message.role !== "assistant") return;
-    firstOutputAt = undefined;
-  });
-  pi.on("message_update", (event) => {
-    if (event.message.role !== "assistant") return;
-    if (firstOutputAt !== undefined) return;
-    const update = event.assistantMessageEvent;
-    if (
-      update.type !== "text_delta" &&
-      update.type !== "thinking_delta" &&
-      update.type !== "toolcall_delta"
-    )
-      return;
-    if (update.delta.length === 0) return;
-    firstOutputAt = performance.now();
-  });
-  pi.on("message_end", (event) => {
-    if (event.message.role !== "assistant") return;
-    const { stopReason, usage } = event.message;
-    const finishedAt = performance.now();
-    tokenSpeed =
-      stopReason === "error" || stopReason === "aborted"
-        ? undefined
-        : calculateTokenSpeed(usage.output, firstOutputAt, finishedAt);
-    firstOutputAt = undefined;
-    requestRender();
-  });
   pi.on("model_select", () => {
-    firstOutputAt = undefined;
-    tokenSpeed = undefined;
     requestRender();
   });
-
   pi.on("turn_end", () => {
     refreshLimits().catch(reportUsageRefreshError);
   });
@@ -692,13 +629,10 @@ export default function (pi: ExtensionAPI): void {
 
   pi.on("session_start", (_event, ctx) => {
     activeTools = new Map();
-    firstOutputAt = undefined;
-    tokenSpeed = undefined;
     let state: FooterState = {
       usage: { status: "loading" },
       plan: { status: "loading" },
       activeTools: [],
-      tokenSpeed: undefined,
     };
     let refreshTimer: ReturnType<typeof setTimeout> | undefined;
     let refreshInFlight = false;
@@ -815,7 +749,6 @@ export default function (pi: ExtensionAPI): void {
         state = {
           ...state,
           activeTools: [...activeTools.values()],
-          tokenSpeed,
         };
         tui.requestRender();
       };
