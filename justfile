@@ -5,35 +5,73 @@ mermaid-browser := "chromium"
 setup:
     sandbox pnpm install --frozen-lockfile
 
+just-parallel *RECIPES:
+    #!/usr/bin/env nu
+    let runs = (
+        [{{RECIPES}}]
+        | par-each {|recipe| ^just $recipe | complete | insert recipe $recipe }
+    )
+    $runs | each {|r| print $"== just ($r.recipe)" ($r.stdout + $r.stderr) }
+    let failed = ($runs | where exit_code != 0)
+    if ($failed | is-not-empty) {
+        print --stderr $"failed: ($failed.recipe | str join ' ')"
+        exit 1
+    }
+
 fix:
-    just nix-fix
-    just ts-fix
+    just just-parallel nix-fix ts-fix
 
 check:
     just fix
-    just ci-check
-    just nix-check
-    just ts-check
-    just mermaid-check
-    just test
+    just just-parallel \
+        ci-check \
+        nix-check \
+        ts-check \
+        mermaid-check \
+        test
 
 test:
-    just node-test
-    just bun-test
+    just just-parallel node-test bun-test
 
 ci-check:
     woodpecker-cli lint .woodpecker/
 
 ts-check:
-    sandbox pnpm exec prettier --check .
-    sandbox pnpm exec tsc --noEmit
-    sandbox pnpm exec eslint .
+    just just-parallel \
+        ts-check-prettier \
+        ts-check-tsc \
+        ts-check-eslint \
+        ts-check-knip \
+        ts-check-knip-production
+
+ts-check-prettier:
+    sandbox pnpm exec prettier --check --cache .
+
+ts-check-tsc:
+    sandbox pnpm exec tsc \
+        --noEmit \
+        --incremental \
+        --tsBuildInfoFile node_modules/.cache/tsc/tsbuildinfo
+
+ts-check-eslint:
+    sandbox pnpm exec eslint \
+        --cache \
+        --cache-location node_modules/.cache/eslint/ \
+        .
+
+ts-check-knip:
     sandbox pnpm exec knip
+
+ts-check-knip-production:
     sandbox pnpm exec knip --production
 
 ts-fix:
-    sandbox pnpm exec prettier --write .
-    sandbox pnpm exec eslint . --fix
+    sandbox pnpm exec prettier --write --cache .
+    sandbox pnpm exec eslint \
+        --cache \
+        --cache-location node_modules/.cache/eslint/ \
+        --fix \
+        .
 
 node-test:
     sandbox pnpm exec vitest run
