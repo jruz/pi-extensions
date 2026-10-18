@@ -79,11 +79,13 @@ node-test:
 ts-outdated:
     sandbox pnpm outdated
 
-ts-upgrade:
+ts-upgrade +PACKAGES:
     sandbox pnpm \
         --config.save-exact=true \
+        --config.strict-peer-dependencies=true \
         update \
-        --latest
+        --latest \
+        {{PACKAGES}}
 
 nix-check:
     fd \
