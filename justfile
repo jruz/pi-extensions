@@ -5,25 +5,25 @@ mermaid-browser := "chromium"
 setup:
     sandbox pnpm install --frozen-lockfile
 
-just-parallel *RECIPES:
+parallel +RECIPES:
     #!/usr/bin/env nu
-    let runs = (
-        [{{RECIPES}}]
-        | par-each {|recipe| ^just $recipe | complete | insert recipe $recipe }
-    )
-    $runs | each {|r| print $"== just ($r.recipe)" ($r.stdout + $r.stderr) }
-    let failed = ($runs | where exit_code != 0)
-    if ($failed | is-not-empty) {
-        print --stderr $"failed: ($failed.recipe | str join ' ')"
-        exit 1
+    let runs = ([{{RECIPES}}] | par-each {|recipe|
+        ^just $recipe o+e>| complete | insert recipe $recipe })
+    for run in $runs {
+        if $run.exit_code == 0 {
+            print $"PASS ($run.recipe)"
+        } else {
+            print $"FAIL ($run.recipe)" $run.stdout
+        }
     }
+    if ($runs | any {|run| $run.exit_code != 0 }) { exit 1 }
 
 fix:
-    just just-parallel nix-fix ts-fix
+    just parallel nix-fix ts-fix
 
 check:
     just fix
-    just just-parallel \
+    just parallel \
         ci-check \
         nix-check \
         ts-check \
@@ -31,13 +31,13 @@ check:
         test
 
 test:
-    just just-parallel node-test bun-test
+    just parallel node-test bun-test
 
 ci-check:
     woodpecker-cli lint .woodpecker/
 
 ts-check:
-    just just-parallel \
+    just parallel \
         ts-check-prettier \
         ts-check-tsc \
         ts-check-eslint \
