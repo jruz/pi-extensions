@@ -1,3 +1,4 @@
+import type { Stats } from "node:fs";
 import {
   appendFile,
   mkdir,
@@ -23,7 +24,7 @@ const USAGE_LOCK_RETRY_MS = 1000;
 const homeDirectory = homedir();
 const USAGE_CACHE_PATH = resolve(
   homeDirectory,
-  ".cache/pi/statusline-usage-cache.json",
+  ".cache/pi/statusline-codex-usage-cache.json",
 );
 const USAGE_LOCK_PATH = `${USAGE_CACHE_PATH}.lock`;
 const PROGRESS_WIDTH = 10;
@@ -209,6 +210,16 @@ const acquireStaleUsageLock = async (): Promise<boolean> => {
   }
 };
 
+const readUsageLockStats = async (): Promise<Stats | undefined> => {
+  try {
+    return await stat(USAGE_LOCK_PATH);
+  } catch (error) {
+    if (error instanceof Error && "code" in error && error.code === "ENOENT")
+      return;
+    throw error;
+  }
+};
+
 const acquireUsageLock = async (): Promise<boolean> => {
   const cacheDirectory = resolve(USAGE_LOCK_PATH, "..");
   await mkdir(cacheDirectory, { recursive: true });
@@ -218,7 +229,8 @@ const acquireUsageLock = async (): Promise<boolean> => {
   } catch (error) {
     if (!(error instanceof Error && "code" in error && error.code === "EEXIST"))
       throw error;
-    const lockStats = await stat(USAGE_LOCK_PATH);
+    const lockStats = await readUsageLockStats();
+    if (lockStats === undefined) return acquireUsageLock();
     if (Date.now() - lockStats.mtimeMs <= USAGE_LOCK_TTL_MS) return false;
     return acquireStaleUsageLock();
   }
@@ -572,22 +584,24 @@ const readJson = (response: Response): Promise<unknown> => response.json();
 
 const fetchUsageLimits = async (
   ctx: ExtensionContext,
+  signal: AbortSignal,
 ): Promise<UsageLimits> => {
   const auth = await ctx.modelRegistry.getProviderAuth("openai-codex");
+  signal.throwIfAborted();
   if (auth === undefined)
-    throw new Error("openai-codex authentication unavailable");
+    throw new Error("usage companion unavailable: /login openai-codex");
   const headers = new Headers();
+  if (auth.auth.apiKey !== undefined) {
+    headers.set("Authorization", `Bearer ${auth.auth.apiKey}`);
+  }
   if (auth.auth.headers !== undefined) {
     Object.entries(auth.auth.headers).forEach(([key, value]) => {
       if (value !== null) headers.set(key, value);
     });
   }
-  if (auth.auth.apiKey !== undefined) {
-    headers.set("Authorization", `Bearer ${auth.auth.apiKey}`);
-  }
   const response = await fetch(USAGE_URL, {
     headers,
-    signal: AbortSignal.timeout(USAGE_TIMEOUT_MS),
+    signal: AbortSignal.any([signal, AbortSignal.timeout(USAGE_TIMEOUT_MS)]),
   });
   if (!response.ok) throw new Error(`usage request failed: ${response.status}`);
   const body = await readJson(response);
@@ -599,9 +613,20 @@ export default function (pi: ExtensionAPI): void {
   let requestRender: () => void = () => undefined;
   let refreshLimits: () => Promise<void> = () => Promise.resolve();
   let refreshPlan: () => Promise<void> = () => Promise.resolve();
+  let stopSession: () => void = () => undefined;
 
   pi.on("model_select", () => {
     requestRender();
+  });
+  pi.on("thinking_level_select", () => {
+    requestRender();
+  });
+  pi.on("session_shutdown", () => {
+    stopSession();
+    activeTools.clear();
+    requestRender = () => undefined;
+    refreshLimits = () => Promise.resolve();
+    refreshPlan = () => Promise.resolve();
   });
   pi.on("turn_end", () => {
     refreshLimits().catch(reportUsageRefreshError);
@@ -618,6 +643,11 @@ export default function (pi: ExtensionAPI): void {
     refreshPlan().catch(reportPlanReadError);
   });
 
+  pi.on("agent_settled", (event) => {
+    if (!event.aborted) return;
+    activeTools.clear();
+    requestRender();
+  });
   pi.on("tool_execution_start", (event) => {
     activeTools.set(event.toolCallId, event.toolName);
     requestRender();
@@ -628,7 +658,19 @@ export default function (pi: ExtensionAPI): void {
   });
 
   pi.on("session_start", (_event, ctx) => {
+    stopSession();
     activeTools = new Map();
+    requestRender = () => undefined;
+    refreshLimits = () => Promise.resolve();
+    refreshPlan = () => Promise.resolve();
+    if (ctx.mode !== "tui") return;
+    const controller = new AbortController();
+    const isStopped = (): boolean => controller.signal.aborted;
+    let renderSession: () => void = () => undefined;
+    const render = (): void => {
+      if (isStopped()) return;
+      renderSession();
+    };
     let state: FooterState = {
       usage: { status: "loading" },
       plan: { status: "loading" },
@@ -637,6 +679,14 @@ export default function (pi: ExtensionAPI): void {
     let refreshTimer: ReturnType<typeof setTimeout> | undefined;
     let refreshInFlight = false;
     let planReadVersion = 0;
+    let unsubscribeBranch: () => void = () => undefined;
+    const stop = (): void => {
+      if (isStopped()) return;
+      controller.abort();
+      if (refreshTimer !== undefined) clearTimeout(refreshTimer);
+      unsubscribeBranch();
+    };
+    stopSession = stop;
     const reportedErrors = new Set<string>();
     const reportError = (
       module: string,
@@ -651,6 +701,7 @@ export default function (pi: ExtensionAPI): void {
     };
 
     const scheduleRefresh = (delay = USAGE_TTL_MS): void => {
+      if (isStopped()) return;
       if (refreshTimer !== undefined) clearTimeout(refreshTimer);
       refreshTimer = setTimeout(() => {
         refresh().catch(reportUsageRefreshError);
@@ -658,41 +709,46 @@ export default function (pi: ExtensionAPI): void {
     };
 
     const refreshPlanForSession = async (): Promise<void> => {
+      if (isStopped()) return;
       const readVersion = ++planReadVersion;
       const plan = await readPlanProgress(ctx.cwd);
-      if (readVersion !== planReadVersion) return;
+      if (isStopped() || readVersion !== planReadVersion) return;
       if (plan.status === "error") {
         await reportStatusError("plan", "read", plan.message);
       }
+      if (isStopped()) return;
       state = { ...state, plan };
-      requestRender();
+      render();
     };
 
     refreshPlan = refreshPlanForSession;
 
     const refresh = async (): Promise<void> => {
-      if (refreshInFlight) return;
+      if (isStopped() || refreshInFlight) return;
       refreshInFlight = true;
       if (refreshTimer !== undefined) clearTimeout(refreshTimer);
       let cache: UsageCache | undefined;
       try {
         cache = await readUsageCache();
       } catch (error) {
+        if (isStopped()) return;
         await reportStatusError("usage", "cache_read", error);
         await rm(USAGE_CACHE_PATH, { force: true });
+        if (isStopped()) return;
         state = {
           ...state,
           usage: { status: "error", message: "usage cache read failed" },
         };
-        requestRender();
+        render();
       }
+      if (isStopped()) return;
       if (cache !== undefined) {
         const cacheIsFresh = Date.now() - cache.fetchedAt < USAGE_TTL_MS;
         state = {
           ...state,
           usage: { status: "success", value: cache.limits },
         };
-        requestRender();
+        render();
         if (cacheIsFresh) {
           refreshInFlight = false;
           scheduleRefresh();
@@ -703,11 +759,13 @@ export default function (pi: ExtensionAPI): void {
       let refreshDelay = USAGE_TTL_MS;
       try {
         lockAcquired = await acquireUsageLock();
+        if (isStopped()) return;
         if (!lockAcquired) {
           refreshDelay = USAGE_LOCK_RETRY_MS;
           return;
         }
         const latestCache = await readUsageCache();
+        if (isStopped()) return;
         if (
           latestCache !== undefined &&
           Date.now() - latestCache.fetchedAt < USAGE_TTL_MS
@@ -716,25 +774,27 @@ export default function (pi: ExtensionAPI): void {
             ...state,
             usage: { status: "success", value: latestCache.limits },
           };
-          requestRender();
+          render();
           return;
         }
-        const limits = await fetchUsageLimits(ctx);
+        const limits = await fetchUsageLimits(ctx, controller.signal);
+        if (isStopped()) return;
         await writeUsageCache(limits);
+        if (isStopped()) return;
         state = {
           ...state,
           usage: { status: "success", value: limits },
         };
-        requestRender();
+        render();
       } catch (error) {
+        if (isStopped()) return;
         await reportStatusError("usage", "refresh", error);
-        if (cache === undefined) {
-          state = {
-            ...state,
-            usage: { status: "error", message: "usage refresh failed" },
-          };
-          requestRender();
-        }
+        if (isStopped()) return;
+        state = {
+          ...state,
+          usage: { status: "error", message: "usage refresh failed" },
+        };
+        render();
       } finally {
         if (lockAcquired) await releaseUsageLock();
         refreshInFlight = false;
@@ -745,19 +805,17 @@ export default function (pi: ExtensionAPI): void {
     refreshLimits = refresh;
 
     ctx.ui.setFooter((tui, theme, footerData) => {
-      requestRender = () => {
+      renderSession = () => {
         state = {
           ...state,
           activeTools: [...activeTools.values()],
         };
         tui.requestRender();
       };
-      const unsubscribe = footerData.onBranchChange(requestRender);
+      requestRender = render;
+      unsubscribeBranch = footerData.onBranchChange(render);
       return {
-        dispose: () => {
-          unsubscribe();
-          if (refreshTimer) clearTimeout(refreshTimer);
-        },
+        dispose: stop,
         invalidate: () => undefined,
         render: (width) => {
           const extensionStatuses = footerData.getExtensionStatuses();
