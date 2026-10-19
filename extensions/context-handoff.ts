@@ -2,7 +2,7 @@ import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { lastTurnFailed } from "./shared/settled-turn.ts";
 
 const CONTEXT_HANDOFF_THRESHOLD = 80;
-const HANDOFF_MESSAGE = `Context usage has reached ${CONTEXT_HANDOFF_THRESHOLD}%. Stop regular work now. Update PLAN.md with the current progress, completed work, remaining tasks, important decisions, constraints, verification results, and exact next steps for a fresh session. Do not continue implementation after updating PLAN.md.`;
+const HANDOFF_MESSAGE = `Context usage has reached the ${CONTEXT_HANDOFF_THRESHOLD}% limit. Stop regular work now. Update PLAN.md with the current progress so it can be continued with a fresh start. Do not continue implementation after updating PLAN.md.`;
 
 export default function (pi: ExtensionAPI): void {
   let handoffRequested = false;
