@@ -79,6 +79,7 @@ export default function messenger(pi: ExtensionAPI): void {
   pi.registerTool({
     name: "messenger",
     label: "Messenger",
+    exposure: "model-only",
     description:
       "Identify your conversation with me, discover online peers, send or reply using full IDs, and read current-runtime history. Normal messages batch while busy; urgent messages steer. Sending with unread incoming messages withholds the draft and returns the waiting batch: review it and retry with an updated response. Offline sends fail. Queues/history disappear on reload or shutdown. History defaults to 20; limit 1–100 and offset page older messages. Text is limited to 8000 characters. Only an explicit reply acknowledges.",
     parameters,
