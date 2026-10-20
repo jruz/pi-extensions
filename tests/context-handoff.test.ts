@@ -75,9 +75,24 @@ const start = async (extensions: ExtensionFactory[] = [contextHandoff]) => {
     settingsManager,
     sessionManager: SessionManager.inMemory(directory),
   });
-  const shutdown = vi.fn();
+  const replacement = vi.fn();
   const errors = vi.fn();
-  await session.bindExtensions({ shutdownHandler: shutdown, onError: errors });
+  await session.bindExtensions({
+    commandContextActions: {
+      waitForIdle: () => session.waitForIdle(),
+      newSession: () => {
+        replacement();
+        return Promise.resolve({ cancelled: false });
+      },
+      fork: vi.fn().mockRejectedValue(new Error("unexpected fork")),
+      navigateTree: vi
+        .fn()
+        .mockRejectedValue(new Error("unexpected navigation")),
+      switchSession: vi.fn().mockRejectedValue(new Error("unexpected switch")),
+      reload: () => session.reload(),
+    },
+    onError: errors,
+  });
   const usage = vi.spyOn(session, "getContextUsage");
   usage.mockReturnValue({ tokens: 800, contextWindow: 1000, percent: 80 });
   cleanups.push(async () => {
@@ -88,7 +103,7 @@ const start = async (extensions: ExtensionFactory[] = [contextHandoff]) => {
     session.dispose();
     await rm(directory, { recursive: true, force: true });
   });
-  return { session, faux, shutdown, errors, directory, usage };
+  return { session, faux, replacement, errors, directory, usage };
 };
 
 const writePlan = (content: string) => {
@@ -120,16 +135,16 @@ afterEach(async () => {
 });
 
 describe("context handoff", () => {
-  it("finishes writing PLAN.md before requesting shutdown", async () => {
+  it("finishes writing PLAN.md before requesting replacement", async () => {
     const runtime = await start();
     const planPath = join(runtime.directory, "PLAN.md");
-    runtime.shutdown.mockImplementation(() => {
+    runtime.replacement.mockImplementation(() => {
       expectPlan(planPath, "handoff saved");
     });
     runtime.faux.setResponses([
       fauxAssistantMessage("regular work"),
       (context) => {
-        expect(runtime.shutdown).not.toHaveBeenCalled();
+        expect(runtime.replacement).not.toHaveBeenCalled();
         const messages = JSON.stringify(context.messages);
         expect(messages).toContain("Stop regular work now");
         return writePlan("handoff saved");
@@ -138,7 +153,7 @@ describe("context handoff", () => {
     ]);
     await finish(runtime);
     expectPlan(planPath, "handoff saved");
-    expect(runtime.shutdown).toHaveBeenCalledOnce();
+    expect(runtime.replacement).toHaveBeenCalledOnce();
     expectHandoffCount(runtime, 1);
   });
 
@@ -153,7 +168,7 @@ describe("context handoff", () => {
       runtime.usage.mockReturnValue(usage);
       runtime.faux.setResponses([fauxAssistantMessage("done")]);
       await finish(runtime);
-      expect(runtime.shutdown).not.toHaveBeenCalled();
+      expect(runtime.replacement).not.toHaveBeenCalled();
       expectHandoffCount(runtime, 0);
       expect(runtime.faux.state.callCount).toBe(1);
     },
@@ -182,7 +197,7 @@ describe("context handoff", () => {
     );
     expect(earlierEntries).toHaveLength(3);
     expectHandoffCount(runtime, 1);
-    expect(runtime.shutdown).toHaveBeenCalledOnce();
+    expect(runtime.replacement).toHaveBeenCalledOnce();
   });
 
   it.each(failedStopReasons)(
@@ -197,13 +212,13 @@ describe("context handoff", () => {
       ]);
       await finish(runtime);
       expectHandoffCount(runtime, 0);
-      expect(runtime.shutdown).not.toHaveBeenCalled();
+      expect(runtime.replacement).not.toHaveBeenCalled();
       expect(runtime.faux.state.callCount).toBe(1);
     },
   );
 
   it.each(failedStopReasons)(
-    "does not shut down or restart after handoff %s",
+    "does not replace or restart after handoff %s",
     async (stopReason) => {
       const runtime = await start();
       runtime.faux.setResponses([
@@ -215,7 +230,7 @@ describe("context handoff", () => {
       ]);
       await finish(runtime);
       expectHandoffCount(runtime, 1);
-      expect(runtime.shutdown).not.toHaveBeenCalled();
+      expect(runtime.replacement).not.toHaveBeenCalled();
       expect(runtime.faux.state.callCount).toBe(2);
     },
   );
@@ -233,11 +248,11 @@ describe("context handoff", () => {
     ]);
     await finish(runtime);
     await Promise.all(aborts);
-    expect(runtime.shutdown).not.toHaveBeenCalled();
+    expect(runtime.replacement).not.toHaveBeenCalled();
     expect(runtime.faux.state.callCount).toBe(2);
   });
 
-  it("waits for existing stop-hook corrective follow-ups before shutdown", async () => {
+  it("waits for existing stop-hook corrective follow-ups before replacement", async () => {
     let checks = 0;
     const stopHook: ExtensionFactory = (pi) => {
       pi.on("agent_settled", async () => {
@@ -251,7 +266,7 @@ describe("context handoff", () => {
     };
     const runtime = await start([stopHook, contextHandoff]);
     const planPath = join(runtime.directory, "PLAN.md");
-    runtime.shutdown.mockImplementation(() => {
+    runtime.replacement.mockImplementation(() => {
       expectPlan(planPath, "corrected handoff");
     });
     runtime.faux.setResponses([
@@ -259,14 +274,14 @@ describe("context handoff", () => {
       writePlan("initial handoff"),
       fauxAssistantMessage("handoff saved"),
       () => {
-        expect(runtime.shutdown).not.toHaveBeenCalled();
+        expect(runtime.replacement).not.toHaveBeenCalled();
         return writePlan("corrected handoff");
       },
       fauxAssistantMessage("corrected"),
     ]);
     await finish(runtime);
     expect(checks).toBe(2);
-    expect(runtime.shutdown).toHaveBeenCalledOnce();
+    expect(runtime.replacement).toHaveBeenCalledOnce();
     expectHandoffCount(runtime, 1);
   });
 
@@ -278,8 +293,8 @@ describe("context handoff", () => {
       fauxAssistantMessage("saved"),
     ]);
     await finish(runtime);
-    expect(runtime.shutdown).toHaveBeenCalledOnce();
-    runtime.shutdown.mockClear();
+    expect(runtime.replacement).toHaveBeenCalledOnce();
+    runtime.replacement.mockClear();
     runtime.session.sessionManager.newSession();
     runtime.session.agent.state.messages = [];
     await runtime.session.extensionRunner.emit({
@@ -293,10 +308,10 @@ describe("context handoff", () => {
     ]);
     await finish(runtime);
     expectHandoffCount(runtime, 1);
-    expect(runtime.shutdown).toHaveBeenCalledOnce();
+    expect(runtime.replacement).toHaveBeenCalledOnce();
   });
 
-  it("cancels a scheduled shutdown when the session closes", async () => {
+  it("cancels a queued replacement when the session closes", async () => {
     const closeSession: ExtensionFactory = (pi) => {
       pi.on("agent_settled", async () => {
         await runtime.session.extensionRunner.emit({
@@ -311,7 +326,7 @@ describe("context handoff", () => {
       fauxAssistantMessage("saved"),
     ]);
     await finish(runtime);
-    expect(runtime.shutdown).not.toHaveBeenCalled();
+    expect(runtime.replacement).not.toHaveBeenCalled();
   });
 
   it("keeps independent extension instances isolated", async () => {
@@ -325,7 +340,7 @@ describe("context handoff", () => {
       ]);
       await finish(runtime);
       expectHandoffCount(runtime, 1);
-      expect(runtime.shutdown).toHaveBeenCalledOnce();
+      expect(runtime.replacement).toHaveBeenCalledOnce();
     };
     await run(first);
     await run(second);

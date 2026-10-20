@@ -3,24 +3,56 @@ import { lastTurnFailed } from "./shared/settled-turn.ts";
 
 const CONTEXT_HANDOFF_THRESHOLD = 80;
 const HANDOFF_MESSAGE = `Context usage has reached the ${CONTEXT_HANDOFF_THRESHOLD}% limit. Stop regular work now. Update PLAN.md with the current progress so it can be continued with a fresh start. Do not continue implementation after updating PLAN.md.`;
+const CONTINUATION_COMMAND = "context-handoff-continue";
+const CONTINUATION_MESSAGE = "Read PLAN.md and continue the plan.";
 
 export default function (pi: ExtensionAPI): void {
   let handoffRequested = false;
-  let shutdownCheck: ReturnType<typeof setImmediate> | undefined;
+  let continuationQueued = false;
 
-  const cancelShutdownCheck = (): void => {
-    if (shutdownCheck === undefined) return;
-    clearImmediate(shutdownCheck);
-    shutdownCheck = undefined;
+  const reset = (): void => {
+    handoffRequested = false;
+    continuationQueued = false;
   };
 
-  pi.on("session_start", () => {
-    cancelShutdownCheck();
-    handoffRequested = false;
-  });
+  pi.on("session_start", reset);
+  pi.on("session_shutdown", reset);
 
-  pi.on("session_shutdown", cancelShutdownCheck);
-  pi.on("agent_start", cancelShutdownCheck);
+  pi.registerCommand(CONTINUATION_COMMAND, {
+    description: "Continue a completed context handoff in a fresh session",
+    handler: async (_args, ctx) => {
+      if (!handoffRequested || !continuationQueued) return;
+      if (!ctx.isIdle() || ctx.hasPendingMessages()) {
+        continuationQueued = false;
+        return;
+      }
+      const parentSession = ctx.sessionManager.getSessionFile();
+      reset();
+      try {
+        const result = await ctx.newSession({
+          ...(parentSession === undefined ? {} : { parentSession }),
+          withSession: async (replacementCtx) => {
+            await replacementCtx.sendUserMessage(CONTINUATION_MESSAGE);
+          },
+        });
+        if (result.cancelled) {
+          ctx.ui.notify(
+            "Context handoff session replacement cancelled",
+            "warning",
+          );
+        }
+      } catch (error) {
+        const warning = new Error(
+          "Context handoff session replacement failed",
+          {
+            cause: error,
+          },
+        );
+        process.emitWarning(warning);
+        throw error;
+      }
+    },
+  });
 
   pi.on("turn_end", (event, ctx) => {
     if (handoffRequested || event.outcome !== "completed") return;
@@ -47,17 +79,16 @@ export default function (pi: ExtensionAPI): void {
   });
 
   pi.on("agent_settled", (event, ctx) => {
-    cancelShutdownCheck();
     if (!handoffRequested) return;
     const branch = ctx.sessionManager.getBranch();
     if (event.aborted || lastTurnFailed(branch)) {
-      handoffRequested = false;
+      reset();
       return;
     }
-    shutdownCheck = setImmediate(() => {
-      shutdownCheck = undefined;
-      if (!ctx.isIdle() || ctx.hasPendingMessages()) return;
-      ctx.shutdown();
+    if (continuationQueued) return;
+    continuationQueued = true;
+    pi.sendUserMessage(`/${CONTINUATION_COMMAND}`, {
+      expandPromptTemplates: true,
     });
   });
 }
