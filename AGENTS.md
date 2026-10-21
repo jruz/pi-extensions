@@ -1,6 +1,11 @@
 # Pi Extensions
 
-Global Pi extensions, linked into `~/.pi/agent/extensions` by `just link`.
+Global Pi extensions, loaded explicitly from `~/dev/projects/agent-config/pi/settings.json`.
+
+- Keep `agent-hooks.ts` before `context-handoff.ts` in the configured loading order.
+- `pi-debug` adds `chat-preview.ts` to normal startup.
+- `pi-no-hooks` loads only `status-line.ts`, excluding built-in extensions.
+- Shell aliases live in the dotfiles repository's Nushell and Zsh alias files.
 
 ## Layout
 
@@ -37,4 +42,3 @@ Check the captured footer, not only unit tests.
 - `just check` — run checks and tests
 - `just fix` — format and fix files
 - `just test` — run tests
-- `just link` — link extensions into Pi

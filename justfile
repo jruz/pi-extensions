@@ -1,4 +1,3 @@
-root := justfile_directory()
 mermaid-cli := "mmdc"
 mermaid-browser := "chromium"
 
@@ -117,7 +116,3 @@ mermaid-preview:
 
 bun-test:
     sandbox bun test scripts --pass-with-no-tests
-
-link:
-    mkdir --parents ~/.pi/agent
-    ln -sfnT {{root}}/extensions ~/.pi/agent/extensions
