@@ -26,7 +26,6 @@ const USAGE_CACHE_PATH = resolve(
   homeDirectory,
   ".cache/pi/statusline-codex-usage-cache.json",
 );
-const USAGE_LOCK_PATH = `${USAGE_CACHE_PATH}.lock`;
 const PROGRESS_WIDTH = 10;
 const LEFT_COLUMN_WIDTH = 35;
 const CENTER_COLUMN_WIDTH = 22;
@@ -156,9 +155,11 @@ export const parseUsageCache = (value: unknown): UsageCache => {
   };
 };
 
-const readUsageCache = async (): Promise<UsageCache | undefined> => {
+const readUsageCache = async (
+  cachePath: string,
+): Promise<UsageCache | undefined> => {
   try {
-    const content = await readFile(USAGE_CACHE_PATH, "utf8");
+    const content = await readFile(cachePath, "utf8");
     const value: unknown = JSON.parse(content);
     const cache = parseUsageCache(value);
     return cache;
@@ -169,34 +170,37 @@ const readUsageCache = async (): Promise<UsageCache | undefined> => {
   }
 };
 
-const writeUsageCache = async (limits: UsageLimits): Promise<void> => {
-  const cacheDirectory = resolve(USAGE_CACHE_PATH, "..");
+const writeUsageCache = async (
+  cachePath: string,
+  limits: UsageLimits,
+): Promise<void> => {
+  const cacheDirectory = resolve(cachePath, "..");
   await mkdir(cacheDirectory, { recursive: true });
-  const temporaryPath = `${USAGE_CACHE_PATH}.${process.pid}.tmp`;
+  const temporaryPath = `${cachePath}.${process.pid}.tmp`;
   const content = JSON.stringify({ fetchedAt: Date.now(), limits });
   await writeFile(temporaryPath, content, "utf8");
-  await rename(temporaryPath, USAGE_CACHE_PATH);
+  await rename(temporaryPath, cachePath);
 };
 
-const releaseUsageLock = async (): Promise<void> => {
-  await rm(USAGE_LOCK_PATH, { recursive: true, force: true });
+const releaseUsageLock = async (lockPath: string): Promise<void> => {
+  await rm(lockPath, { recursive: true, force: true });
 };
 
-const acquireStaleUsageLock = async (): Promise<boolean> => {
-  const staleLockPath = `${USAGE_LOCK_PATH}.${process.pid}.stale`;
+const acquireStaleUsageLock = async (lockPath: string): Promise<boolean> => {
+  const staleLockPath = `${lockPath}.${process.pid}.stale`;
   try {
-    await rename(USAGE_LOCK_PATH, staleLockPath);
+    await rename(lockPath, staleLockPath);
   } catch (renameError) {
     if (
       renameError instanceof Error &&
       "code" in renameError &&
       renameError.code === "ENOENT"
     )
-      return acquireUsageLock();
+      return acquireUsageLock(lockPath);
     throw renameError;
   }
   try {
-    await mkdir(USAGE_LOCK_PATH);
+    await mkdir(lockPath);
     return true;
   } catch (mkdirError) {
     await rm(staleLockPath, { recursive: true, force: true });
@@ -210,9 +214,11 @@ const acquireStaleUsageLock = async (): Promise<boolean> => {
   }
 };
 
-const readUsageLockStats = async (): Promise<Stats | undefined> => {
+const readUsageLockStats = async (
+  lockPath: string,
+): Promise<Stats | undefined> => {
   try {
-    return await stat(USAGE_LOCK_PATH);
+    return await stat(lockPath);
   } catch (error) {
     if (error instanceof Error && "code" in error && error.code === "ENOENT")
       return;
@@ -220,19 +226,19 @@ const readUsageLockStats = async (): Promise<Stats | undefined> => {
   }
 };
 
-const acquireUsageLock = async (): Promise<boolean> => {
-  const cacheDirectory = resolve(USAGE_LOCK_PATH, "..");
+const acquireUsageLock = async (lockPath: string): Promise<boolean> => {
+  const cacheDirectory = resolve(lockPath, "..");
   await mkdir(cacheDirectory, { recursive: true });
   try {
-    await mkdir(USAGE_LOCK_PATH);
+    await mkdir(lockPath);
     return true;
   } catch (error) {
     if (!(error instanceof Error && "code" in error && error.code === "EEXIST"))
       throw error;
-    const lockStats = await readUsageLockStats();
-    if (lockStats === undefined) return acquireUsageLock();
+    const lockStats = await readUsageLockStats(lockPath);
+    if (lockStats === undefined) return acquireUsageLock(lockPath);
     if (Date.now() - lockStats.mtimeMs <= USAGE_LOCK_TTL_MS) return false;
-    return acquireStaleUsageLock();
+    return acquireStaleUsageLock(lockPath);
   }
 };
 
@@ -570,6 +576,7 @@ const renderFooter = (
   const renderForeground = (color: RuntimeColor, text: string): string =>
     theme.fg(color, text);
   const hookStatus = extensionStatuses.get("agent-hooks");
+  const accountStatus = extensionStatuses.get("codex-account-swap");
   const third = renderRuntimeLine(
     renderForeground,
     ctx.cwd,
@@ -577,19 +584,31 @@ const renderFooter = (
     hookStatus,
     width,
   );
-  return [truncateToWidth(first, width), truncateToWidth(second, width), third];
+  const lines = [
+    truncateToWidth(first, width),
+    truncateToWidth(second, width),
+    third,
+  ];
+  if (accountStatus === undefined) return lines;
+  const accountLabel = theme.fg("muted", "Account:");
+  const accountColor = accountStatus === "err" ? "error" : "text";
+  const accountValue = theme.fg(accountColor, accountStatus);
+  const accountLine = `${accountLabel} ${accountValue}`;
+  const fourth = truncateToWidth(accountLine, width);
+  return [...lines, fourth];
 };
 
 const readJson = (response: Response): Promise<unknown> => response.json();
 
 const fetchUsageLimits = async (
   ctx: ExtensionContext,
+  provider: string,
   signal: AbortSignal,
 ): Promise<UsageLimits> => {
-  const auth = await ctx.modelRegistry.getProviderAuth("openai-codex");
+  const auth = await ctx.modelRegistry.getProviderAuth(provider);
   signal.throwIfAborted();
   if (auth === undefined)
-    throw new Error("usage companion unavailable: /login openai-codex");
+    throw new Error(`usage companion unavailable: /login ${provider}`);
   const headers = new Headers();
   if (auth.auth.apiKey !== undefined) {
     headers.set("Authorization", `Bearer ${auth.auth.apiKey}`);
@@ -614,7 +633,11 @@ export default function (pi: ExtensionAPI): void {
   let refreshLimits: () => Promise<void> = () => Promise.resolve();
   let refreshPlan: () => Promise<void> = () => Promise.resolve();
   let stopSession: () => void = () => undefined;
+  let accountChanged: () => void = () => undefined;
 
+  pi.events.on("codex-account-swap:changed", () => {
+    accountChanged();
+  });
   pi.on("model_select", () => {
     requestRender();
   });
@@ -623,6 +646,7 @@ export default function (pi: ExtensionAPI): void {
   });
   pi.on("session_shutdown", () => {
     stopSession();
+    accountChanged = () => undefined;
     activeTools.clear();
     requestRender = () => undefined;
     refreshLimits = () => Promise.resolve();
@@ -657,13 +681,26 @@ export default function (pi: ExtensionAPI): void {
     requestRender();
   });
 
-  pi.on("session_start", (_event, ctx) => {
+  const startSession = (
+    ctx: ExtensionContext,
+    invalidateUsage: boolean,
+  ): void => {
     stopSession();
+    accountChanged = () => undefined;
     activeTools = new Map();
     requestRender = () => undefined;
     refreshLimits = () => Promise.resolve();
     refreshPlan = () => Promise.resolve();
     if (ctx.mode !== "tui") return;
+    accountChanged = () => {
+      startSession(ctx, true);
+    };
+    const provider = "openai-codex";
+    const cachePath = USAGE_CACHE_PATH;
+    const invalidation = invalidateUsage
+      ? rm(cachePath, { force: true })
+      : Promise.resolve();
+    const lockPath = `${cachePath}.lock`;
     const controller = new AbortController();
     const isStopped = (): boolean => controller.signal.aborted;
     let renderSession: () => void = () => undefined;
@@ -729,11 +766,13 @@ export default function (pi: ExtensionAPI): void {
       if (refreshTimer !== undefined) clearTimeout(refreshTimer);
       let cache: UsageCache | undefined;
       try {
-        cache = await readUsageCache();
+        await invalidation;
+        if (isStopped()) return;
+        cache = await readUsageCache(cachePath);
       } catch (error) {
         if (isStopped()) return;
         await reportStatusError("usage", "cache_read", error);
-        await rm(USAGE_CACHE_PATH, { force: true });
+        await rm(cachePath, { force: true });
         if (isStopped()) return;
         state = {
           ...state,
@@ -758,13 +797,13 @@ export default function (pi: ExtensionAPI): void {
       let lockAcquired = false;
       let refreshDelay = USAGE_TTL_MS;
       try {
-        lockAcquired = await acquireUsageLock();
+        lockAcquired = await acquireUsageLock(lockPath);
         if (isStopped()) return;
         if (!lockAcquired) {
           refreshDelay = USAGE_LOCK_RETRY_MS;
           return;
         }
-        const latestCache = await readUsageCache();
+        const latestCache = await readUsageCache(cachePath);
         if (isStopped()) return;
         if (
           latestCache !== undefined &&
@@ -777,9 +816,9 @@ export default function (pi: ExtensionAPI): void {
           render();
           return;
         }
-        const limits = await fetchUsageLimits(ctx, controller.signal);
+        const limits = await fetchUsageLimits(ctx, provider, controller.signal);
         if (isStopped()) return;
-        await writeUsageCache(limits);
+        await writeUsageCache(cachePath, limits);
         if (isStopped()) return;
         state = {
           ...state,
@@ -796,7 +835,7 @@ export default function (pi: ExtensionAPI): void {
         };
         render();
       } finally {
-        if (lockAcquired) await releaseUsageLock();
+        if (lockAcquired) await releaseUsageLock(lockPath);
         refreshInFlight = false;
         scheduleRefresh(refreshDelay);
       }
@@ -833,5 +872,9 @@ export default function (pi: ExtensionAPI): void {
 
     refresh().catch(reportUsageRefreshError);
     refreshPlanForSession().catch(reportPlanReadError);
+  };
+
+  pi.on("session_start", (_event, ctx) => {
+    startSession(ctx, false);
   });
 }

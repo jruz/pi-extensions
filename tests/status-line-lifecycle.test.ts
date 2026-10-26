@@ -11,6 +11,7 @@ import { join } from "node:path";
 import { fauxProvider, InMemoryCredentialStore } from "@earendil-works/pi-ai";
 import {
   createAgentSession,
+  createEventBus,
   DefaultResourceLoader,
   initTheme,
   ModelRuntime,
@@ -66,7 +67,9 @@ const setup = async () => {
     compaction: { enabled: false },
     retry: { enabled: false },
   });
+  const events = createEventBus();
   const resources = new DefaultResourceLoader({
+    eventBus: events,
     cwd: directory,
     agentDir: directory,
     settingsManager,
@@ -111,11 +114,12 @@ const setup = async () => {
     .mockImplementation(() => undefined);
   const unsubscribe = vi.fn();
   const footers: Footer[] = [];
+  const statuses = new Map<string, string>();
   const setFooter = vi.fn<ExtensionUIContext["setFooter"]>((factory) => {
     if (factory === undefined) return;
     const footer = factory(tui, ui.theme, {
       getGitBranch: () => null,
-      getExtensionStatuses: () => new Map(),
+      getExtensionStatuses: () => statuses,
       getAvailableProviderCount: () => 1,
       onBranchChange: () => unsubscribe,
     });
@@ -145,6 +149,9 @@ const setup = async () => {
   vi.useFakeTimers();
   return {
     session,
+    theme: ui.theme,
+    events,
+    statuses,
     runner,
     auth,
     footers,
@@ -286,6 +293,82 @@ describe("status line lifecycle", () => {
     expect(account).toBe("synthetic-account");
     expect(runtime.auth).toHaveBeenCalledExactlyOnceWith("openai-codex");
     expect(runtime.session.model?.provider).toBe("faux");
+  });
+
+  it("invalidates cached quota and shows the selected account after a credential swap", async () => {
+    const runtime = await setup();
+    await runtime.start("tui");
+    await vi.waitFor(() => {
+      expect(fetchMock).toHaveBeenCalledOnce();
+      const timers = vi.getTimerCount();
+      expect(timers).toBe(1);
+    });
+    runtime.statuses.set("codex-account-swap", "account-2");
+    runtime.auth.mockResolvedValue({
+      auth: { apiKey: "synthetic-account-2-token" },
+    });
+    runtime.events.emit("codex-account-swap:changed", { account: "account-2" });
+    await vi.waitFor(() => {
+      expect(fetchMock).toHaveBeenCalledTimes(2);
+      const timers = vi.getTimerCount();
+      expect(timers).toBe(1);
+    });
+    expect(runtime.auth).toHaveBeenLastCalledWith("openai-codex");
+    const footer = renderFooter(runtime.footers);
+    const lines = footer.split("\n");
+    expect(lines).toHaveLength(4);
+    expect(lines[2]).toContain("Process:");
+    expect(lines[2]).not.toContain("Account:");
+    expect(lines[3]).toContain("Account:");
+    expect(lines[3]).toContain("account-2");
+    const request = fetchMock.mock.calls[1];
+    if (request === undefined) throw new Error("test: no swapped request");
+    const headers = new Headers(request[1]?.headers);
+    const authorization = headers.get("Authorization");
+    expect(authorization).toBe("Bearer synthetic-account-2-token");
+    const cachePath = join(home, ".cache/pi/statusline-codex-usage-cache.json");
+    const cache = await readFile(cachePath, "utf8");
+    expect(cache).toContain('"limits":{"fiveHour":{},"weekly":{}}');
+    expect(runtime.unsubscribe).toHaveBeenCalledOnce();
+    expect(runtime.errors).not.toHaveBeenCalled();
+  });
+
+  it("renders account errors with the theme error color", async () => {
+    const runtime = await setup();
+    runtime.statuses.set("codex-account-swap", "err");
+    await runtime.start("tui");
+    const footer = renderFooter(runtime.footers);
+    const accountLine = footer.split("\n").at(-1);
+    const redError = runtime.theme.fg("error", "err");
+    const normalError = runtime.theme.fg("text", "err");
+    expect(accountLine).toContain("Account:");
+    expect(accountLine).toContain(redError);
+    expect(redError).not.toBe(normalError);
+  });
+
+  it("discards an old account's pending authentication after switching", async () => {
+    const runtime = await setup();
+    const pending =
+      Promise.withResolvers<Awaited<ReturnType<typeof runtime.auth>>>();
+    runtime.auth.mockReturnValueOnce(pending.promise);
+    await runtime.start("tui");
+    await vi.waitFor(() => {
+      expect(runtime.auth).toHaveBeenCalledOnce();
+    });
+    runtime.events.emit("codex-account-swap:changed", { account: "account-2" });
+    pending.resolve({ auth: { apiKey: "synthetic-old-account" } });
+    await vi.waitFor(
+      () => {
+        expect(fetchMock).toHaveBeenCalledOnce();
+        const timers = vi.getTimerCount();
+        expect(timers).toBe(1);
+      },
+      { timeout: 2000 },
+    );
+    await vi.advanceTimersByTimeAsync(0);
+    expect(fetchMock).toHaveBeenCalledOnce();
+    expect(runtime.auth).toHaveBeenLastCalledWith("openai-codex");
+    expect(runtime.errors).not.toHaveBeenCalled();
   });
 
   it("uses header-only authentication without inventing an API key", async () => {
