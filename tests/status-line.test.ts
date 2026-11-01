@@ -50,33 +50,39 @@ describe("status line formatting", () => {
     expect(full).toBe("━━━━━━━━━━");
   });
 
-  test("colors luna models green and other models red", () => {
-    const lunaColor = modelColor("gpt-5.6-luna");
-    const solColor = modelColor("gpt-5.6-sol");
-    expect(lunaColor).toBe("success");
-    expect(solColor).toBe("error");
+  test("colors named models and other models", () => {
+    const terra = modelColor("gpt-5.6-terra");
+    const sol = modelColor("gpt-5.6-sol");
+    const astra = modelColor("gpt-5.6-astra");
+    const other = modelColor("gpt-5.6-other");
+    const extended = modelColor("gpt-5.6-terra-extra");
+    expect(terra).toBe("accent");
+    expect(sol).toBe("warning");
+    expect(astra).toBe("error");
+    expect(other).toBe("purple");
+    expect(extended).toBe("purple");
   });
 
   test("colors model prefix and suffix independently", () => {
-    const luna = modelNameParts("gpt-5.6-luna");
+    const terra = modelNameParts("gpt-5.6-terra");
     const sol = modelNameParts("gpt-5.6-sol");
     const olderGpt = modelNameParts("gpt-4o-mini");
     const futureGpt = modelNameParts("gpt-6-astra");
     const claude = modelNameParts("claude");
-    expect(luna).toEqual({
+    expect(terra).toEqual({
       prefix: "gpt-5.6-",
-      suffix: "luna",
-      color: "success",
+      suffix: "terra",
+      color: "accent",
     });
     expect(sol).toEqual({
       prefix: "gpt-5.6-",
       suffix: "sol",
-      color: "error",
+      color: "warning",
     });
     expect(olderGpt).toEqual({
       prefix: "gpt-4o-",
       suffix: "mini",
-      color: "error",
+      color: "purple",
     });
     expect(futureGpt).toEqual({
       prefix: "gpt-6-",
@@ -86,7 +92,7 @@ describe("status line formatting", () => {
     expect(claude).toEqual({
       prefix: "claude",
       suffix: "",
-      color: "error",
+      color: "purple",
     });
   });
 

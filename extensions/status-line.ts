@@ -14,7 +14,7 @@ import type {
   ExtensionAPI,
   ExtensionContext,
 } from "@earendil-works/pi-coding-agent";
-import { truncateToWidth } from "@earendil-works/pi-tui";
+import { parseColor, truncateToWidth } from "@earendil-works/pi-tui";
 import { PI_LOG_DIRECTORY } from "./shared/log-path.ts";
 const USAGE_URL = "https://chatgpt.com/backend-api/wham/usage";
 const USAGE_TTL_MS = 5 * 60 * 1000;
@@ -29,7 +29,7 @@ const USAGE_CACHE_PATH = resolve(
 const PROGRESS_WIDTH = 10;
 const LEFT_COLUMN_WIDTH = 35;
 const CENTER_COLUMN_WIDTH = 22;
-const PREFERRED_MODEL_SUFFIX = "-luna";
+const OTHER_MODEL_COLOR = parseColor("#a855f7");
 
 type RateWindow = Readonly<{
   remainingPercent: number | undefined;
@@ -336,10 +336,14 @@ export const formatDuration = (resetsAt: number, now = Date.now()): string => {
 };
 
 type BarColor = "accent" | "dim" | "error" | "success" | "warning";
-type ModelColor = "success" | "error";
+type ModelColor = "accent" | "warning" | "error" | "purple";
 
-export const modelColor = (model: string): ModelColor =>
-  model.endsWith(PREFERRED_MODEL_SUFFIX) ? "success" : "error";
+export const modelColor = (model: string): ModelColor => {
+  if (model.endsWith("-terra")) return "accent";
+  if (model.endsWith("-sol")) return "warning";
+  if (model.endsWith("-astra")) return "error";
+  return "purple";
+};
 
 const modelPrefix = /^gpt-[^-]+(?:-|$)/;
 
@@ -366,7 +370,10 @@ const renderModelName = (
   const parts = modelNameParts(model);
   if (parts.suffix === "") return theme.fg("text", parts.prefix);
   const coloredPrefix = theme.fg("text", parts.prefix);
-  const coloredSuffix = theme.fg(parts.color, parts.suffix);
+  const coloredSuffix =
+    parts.color === "purple"
+      ? theme.style(parts.suffix, { fg: OTHER_MODEL_COLOR })
+      : theme.fg(parts.color, parts.suffix);
   return coloredPrefix + coloredSuffix;
 };
 
