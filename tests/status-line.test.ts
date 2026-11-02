@@ -210,7 +210,7 @@ describe("status line formatting", () => {
         resetsAt: undefined,
       },
     });
-    expect(parseInvalidPayload).toThrow();
+    expect(parseInvalidPayload).toThrow("usage rate limit is not an object");
     expect(duration).toBe("1h");
   });
 

@@ -17,6 +17,7 @@ import {
   type AgentSession,
   type ExtensionAPI,
   type ExtensionFactory,
+  type ExtensionError,
 } from "@earendil-works/pi-coding-agent";
 import { Type } from "typebox";
 import { afterAll, afterEach, describe, expect, it, vi } from "vitest";
@@ -128,7 +129,7 @@ const start = async (extensionFactories: ExtensionFactory[]) => {
     sessionManager: SessionManager.inMemory(directory),
   });
   const runner = session.extensionRunner;
-  const errors = vi.fn();
+  const errors = vi.fn<(error: ExtensionError) => void>();
   await session.bindExtensions({
     mode: "tui",
     uiContext: runner.getUIContext(),

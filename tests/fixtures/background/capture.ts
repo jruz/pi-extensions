@@ -1,6 +1,7 @@
 import { writeFile } from "node:fs/promises";
 import { Writable } from "node:stream";
 import { pipeline } from "node:stream/promises";
+import { callbackify } from "node:util";
 import { log } from "./log.ts";
 
 const [logPath, metadataPath, capacityValue] = process.argv.slice(2);
@@ -40,17 +41,12 @@ const captureChunk = async (chunk: unknown): Promise<void> => {
   captures.set("current", next);
 };
 
+const writeChunk = callbackify(captureChunk);
+
 const sink = new Writable({
   highWaterMark: 64 * 1024,
   write(chunk: unknown, _encoding, callback) {
-    captureChunk(chunk).then(
-      () => {
-        callback();
-      },
-      (error: unknown) => {
-        callback(error instanceof Error ? error : new Error(String(error)));
-      },
-    );
+    writeChunk(chunk, callback);
   },
 });
 

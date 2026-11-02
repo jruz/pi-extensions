@@ -18,6 +18,7 @@ import {
   SessionManager,
   SettingsManager,
   type ExtensionContext,
+  type ExtensionError,
   type ExtensionUIContext,
 } from "@earendil-works/pi-coding-agent";
 import {
@@ -45,7 +46,7 @@ vi.mock("node:os", async (original) => {
 
 vi.mock("node:fs/promises", async (original) => {
   const actual = await original<typeof import("node:fs/promises")>();
-  return { ...actual, stat: vi.fn(actual.stat) };
+  return { ...actual, stat: vi.fn<typeof actual.stat>(actual.stat) };
 });
 
 const usageLockPath = join(
@@ -112,7 +113,7 @@ const setup = async () => {
   const requestRender = vi
     .spyOn(tui, "requestRender")
     .mockImplementation(() => undefined);
-  const unsubscribe = vi.fn();
+  const unsubscribe = vi.fn<() => void>();
   const footers: Footer[] = [];
   const statuses = new Map<string, string>();
   const setFooter = vi.fn<ExtensionUIContext["setFooter"]>((factory) => {
@@ -125,7 +126,7 @@ const setup = async () => {
     });
     footers.push(footer);
   });
-  const errors = vi.fn();
+  const errors = vi.fn<(error: ExtensionError) => void>();
   const start = async (mode: ExtensionMode) => {
     await session.bindExtensions({
       mode,

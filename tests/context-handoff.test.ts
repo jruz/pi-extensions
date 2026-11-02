@@ -17,6 +17,8 @@ import {
   SessionManager,
   SettingsManager,
   type ExtensionFactory,
+  type ExtensionError,
+  type ExtensionCommandContextActions,
 } from "@earendil-works/pi-coding-agent";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import contextHandoff from "../extensions/context-handoff.ts";
@@ -75,8 +77,8 @@ const start = async (extensions: ExtensionFactory[] = [contextHandoff]) => {
     settingsManager,
     sessionManager: SessionManager.inMemory(directory),
   });
-  const replacement = vi.fn();
-  const errors = vi.fn();
+  const replacement = vi.fn<() => void>();
+  const errors = vi.fn<(error: ExtensionError) => void>();
   await session.bindExtensions({
     commandContextActions: {
       waitForIdle: () => session.waitForIdle(),
@@ -84,11 +86,15 @@ const start = async (extensions: ExtensionFactory[] = [contextHandoff]) => {
         replacement();
         return Promise.resolve({ cancelled: false });
       },
-      fork: vi.fn().mockRejectedValue(new Error("unexpected fork")),
+      fork: vi
+        .fn<ExtensionCommandContextActions["fork"]>()
+        .mockRejectedValue(new Error("unexpected fork")),
       navigateTree: vi
-        .fn()
+        .fn<ExtensionCommandContextActions["navigateTree"]>()
         .mockRejectedValue(new Error("unexpected navigation")),
-      switchSession: vi.fn().mockRejectedValue(new Error("unexpected switch")),
+      switchSession: vi
+        .fn<ExtensionCommandContextActions["switchSession"]>()
+        .mockRejectedValue(new Error("unexpected switch")),
       reload: () => session.reload(),
     },
     onError: errors,

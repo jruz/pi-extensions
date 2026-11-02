@@ -1,0 +1,13 @@
+{
+  "entry": [
+    "extensions/*.ts!",
+    "extensions/*/index.ts!",
+    "tests/fixtures/**/*.ts",
+    ".oxlint/**/*.test.ts",
+    "scripts/*.ts!",
+    "!scripts/**/*.test.ts!",
+    "scripts/**/*.test.ts",
+    "scripts/lib/output.ts"
+  ],
+  "project": ["**/*.ts"]
+}

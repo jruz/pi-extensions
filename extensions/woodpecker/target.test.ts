@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
+import { ZodError } from "zod";
 import {
   changedPipelines,
   createPipelineReader,
@@ -92,7 +93,7 @@ describe("commit watching", () => {
     );
     request.mockResolvedValueOnce([{ ...tag, ref: undefined }]);
     const malformedRequest = read(9, target, signal);
-    await expect(malformedRequest).rejects.toThrow();
+    await expect(malformedRequest).rejects.toThrow(ZodError);
     request.mockRejectedValueOnce(new Error("request failed"));
     const failedRequest = read(9, target, signal);
     await expect(failedRequest).rejects.toThrow("request failed");

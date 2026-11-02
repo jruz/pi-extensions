@@ -3,6 +3,7 @@ import { mkdtemp, readdir, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
+import { ZodError } from "zod";
 import { createRuntime, type MessengerRuntime } from "./runtime.ts";
 import { createTransport } from "./transport.ts";
 import {
@@ -397,7 +398,7 @@ describe("ephemeral messenger", () => {
       "normal",
       undefined,
     );
-    await expect(shortened).rejects.toThrow();
+    await expect(shortened).rejects.toThrow(ZodError);
     const self = sendMessage(test.left, test.left, "self");
     await expect(self).rejects.toThrow("yourself");
     const unknownReply = randomUUID();
@@ -409,10 +410,10 @@ describe("ephemeral messenger", () => {
     );
     await expect(invalid).rejects.toThrow("reply target");
     const empty = sendMessage(test.left, test.right, "");
-    await expect(empty).rejects.toThrow();
+    await expect(empty).rejects.toThrow(ZodError);
     const oversizedText = "x".repeat(8001);
     const oversized = sendMessage(test.left, test.right, oversizedText);
-    await expect(oversized).rejects.toThrow();
+    await expect(oversized).rejects.toThrow(ZodError);
   });
 
   it("does not duplicate overlapping polls and retries failed injection", async () => {

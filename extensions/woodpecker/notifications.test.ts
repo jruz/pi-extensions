@@ -120,7 +120,7 @@ describe("Woodpecker notifications", () => {
       [failed],
       controller.signal,
     );
-    await expect(request).rejects.toThrow();
+    await expect(request).rejects.toThrow("This operation was aborted");
     expect(deps.send).not.toHaveBeenCalled();
     expect(deps.loading.mock.calls).toEqual([[true], [false]]);
   });

@@ -1,27 +1,37 @@
 {
   "name": "pi-extensions",
-  "private": true,
-  "type": "module",
-  "engines": {
-    "node": "24.21.0",
-    "pnpm": "11.27.0"
+  "scripts": {
+    "knip-check": "knip",
+    "knip-production-check": "knip --production",
+    "oxfmt-check": "oxfmt --check",
+    "oxlint-check": "oxlint --config .oxlintrc.json --deny-warnings --report-unused-disable-directives-severity error .",
+    "oxlint-rules-check": "node --test .oxlint/*.test.ts",
+    "tsc-check": "tsc"
   },
   "devDependencies": {
     "@earendil-works/pi-ai": "1.4.0",
     "@earendil-works/pi-coding-agent": "1.4.0",
     "@earendil-works/pi-tui": "1.4.0",
-    "@eslint/js": "10.0.1",
-    "@tsconfig/strictest": "2.0.8",
-    "@types/bun": "1.3.13",
     "@types/node": "24.19.1",
-    "eslint": "10.12.0",
-    "jiti": "2.7.0",
-    "knip": "6.40.0",
-    "prettier": "3.9.9",
     "typebox": "1.3.27",
-    "typescript": "6.0.3",
-    "typescript-eslint": "8.71.1",
     "vitest": "5.0.3",
-    "zod": "4.6.5"
+    "@oxlint/plugins": "1.89.0",
+    "@tsconfig/strictest": "2.0.8",
+    "@types/bun": "1.4.4",
+    "knip": "6.43.0",
+    "oxfmt": "0.74.0",
+    "oxlint": "1.89.0",
+    "oxlint-tsgolint": "7.0.2005",
+    "typescript": "7.0.2"
+  },
+  "private": true,
+  "type": "module",
+  "engines": {
+    "bun": "1.4.4",
+    "node": "24.21.0",
+    "pnpm": "11.27.0"
+  },
+  "dependencies": {
+    "zod": "4.6.7"
   }
 }

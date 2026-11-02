@@ -16,6 +16,8 @@ import {
   ModelRuntime,
   SessionManager,
   SettingsManager,
+  type ExtensionError,
+  type ExtensionUIContext,
 } from "@earendil-works/pi-coding-agent";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import codexAccountSwap from "../extensions/codex-account-swap.ts";
@@ -25,11 +27,11 @@ import { logError } from "../extensions/shared/log.ts";
 vi.mock("@earendil-works/pi-coding-agent", async (original) => {
   const actual =
     await original<typeof import("@earendil-works/pi-coding-agent")>();
-  return { ...actual, getAgentDir: vi.fn() };
+  return { ...actual, getAgentDir: vi.fn<typeof getAgentDir>() };
 });
 
 vi.mock("../extensions/shared/log.ts", () => ({
-  logError: vi.fn(() => Promise.resolve()),
+  logError: vi.fn<typeof logError>(() => Promise.resolve()),
 }));
 
 const log = vi.mocked(logError);
@@ -114,9 +116,9 @@ const setup = async (
     sessionManager,
     tools: [],
   });
-  const errors = vi.fn();
-  const notify = vi.fn();
-  const setStatus = vi.fn();
+  const errors = vi.fn<(error: ExtensionError) => void>();
+  const notify = vi.fn<ExtensionUIContext["notify"]>();
+  const setStatus = vi.fn<ExtensionUIContext["setStatus"]>();
   const ui = session.extensionRunner.getUIContext();
   await session.bindExtensions({
     onError: errors,

@@ -18,6 +18,8 @@ import {
   type CreateAgentSessionRuntimeFactory,
   type ExtensionFactory,
   type ExtensionContext,
+  type ExtensionError,
+  type ExtensionUIContext,
 } from "@earendil-works/pi-coding-agent";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import contextHandoff from "../extensions/context-handoff.ts";
@@ -81,9 +83,9 @@ const start = async (
     agentDir: directory,
     sessionManager: SessionManager.inMemory(directory),
   });
-  const errors = vi.fn();
-  const shutdown = vi.fn();
-  const notify = vi.fn();
+  const errors = vi.fn<(error: ExtensionError) => void>();
+  const shutdown = vi.fn<() => void>();
+  const notify = vi.fn<ExtensionUIContext["notify"]>();
   const rebind = async () => {
     await runtime.session.bindExtensions({
       mode,

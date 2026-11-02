@@ -54,16 +54,12 @@ const stopFixture = async (child: ChildProcess): Promise<void> => {
 
 describe("background fixtures under native Node", () => {
   it("preserves fast initial/final output and exit status", async () => {
-    try {
-      await execFileAsync(process.execPath, [fastFixture]);
-      throw new Error("fast fixture: expected exit 3");
-    } catch (error) {
-      expect(error).toMatchObject({
-        code: 3,
-        stdout: "fast-start\nfast-final\n",
-        stderr: "",
-      });
-    }
+    const execution = execFileAsync(process.execPath, [fastFixture]);
+    await expect(execution).rejects.toMatchObject({
+      code: 3,
+      stdout: "fast-start\nfast-final\n",
+      stderr: "",
+    });
   });
 
   it("keeps the resistant worker alive after SIGTERM and SIGINT", async () => {

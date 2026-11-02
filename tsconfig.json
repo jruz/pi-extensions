@@ -1,17 +1,19 @@
 {
   "extends": "@tsconfig/strictest/tsconfig.json",
+  "include": ["**/*", ".oxlint/**/*.ts"],
+  "exclude": ["node_modules", "target"],
   "compilerOptions": {
     "lib": ["ESNext"],
     "target": "ESNext",
-    "module": "NodeNext",
+    "module": "Preserve",
     "moduleDetection": "force",
-    "allowJs": true,
-
-    "moduleResolution": "NodeNext",
+    "moduleResolution": "bundler",
     "erasableSyntaxOnly": true,
-    "types": ["node", "bun"],
+    "types": ["bun"],
     "allowImportingTsExtensions": true,
     "verbatimModuleSyntax": true,
-    "noEmit": true
+    "noEmit": true,
+    "incremental": true,
+    "tsBuildInfoFile": "node_modules/.cache/tsc/tsbuildinfo"
   }
 }

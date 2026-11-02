@@ -3,7 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { requestError, requestJson, retryDelay } from "./request.ts";
 
 vi.mock("node:timers/promises", () => ({
-  setTimeout: vi.fn(() => Promise.resolve()),
+  setTimeout: vi.fn<typeof sleep>().mockResolvedValue(undefined),
 }));
 
 const url = new URL("https://ci.example.test/api/repos");
@@ -103,7 +103,7 @@ describe("Woodpecker request retries", () => {
   it("does not start a cancelled request", async () => {
     const signal = AbortSignal.abort();
     const result = request(signal);
-    await expect(result).rejects.toThrow();
+    await expect(result).rejects.toThrow("This operation was aborted");
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
@@ -114,7 +114,7 @@ describe("Woodpecker request retries", () => {
       return Promise.reject(new TypeError("cancelled"));
     });
     const result = request(controller.signal);
-    await expect(result).rejects.toThrow();
+    await expect(result).rejects.toThrow("This operation was aborted");
     expect(sleep).not.toHaveBeenCalled();
   });
 
@@ -129,7 +129,7 @@ describe("Woodpecker request retries", () => {
       return Promise.resolve();
     });
     const result = request(controller.signal);
-    await expect(result).rejects.toThrow();
+    await expect(result).rejects.toThrow("This operation was aborted");
     expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 });
