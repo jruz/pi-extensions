@@ -1,0 +1,27 @@
+repository:
+  private: false
+  allow_auto_merge: true
+  allow_merge_commit: false
+  allow_rebase_merge: false
+  allow_squash_merge: true
+  archived: false
+  default_branch: main
+  delete_branch_on_merge: true
+  enable_automated_security_fixes: false
+  enable_vulnerability_alerts: true
+  has_issues: true
+  has_projects: false
+  has_wiki: false
+  is_template: false
+
+labels:
+  - name: bugs
+    color: d73a4a
+  - name: deps
+    color: 0075ca
+  - name: feat
+    color: 2da44e
+  - name: refa
+    color: a2eeef
+  - name: tool
+    color: 7057ff
