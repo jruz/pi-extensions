@@ -1,0 +1,41 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": ["config:recommended"],
+  "enabledManagers": ["npm"],
+  "rangeStrategy": "pin",
+  "semanticCommits": "disabled",
+  "commitMessagePrefix": "[deps] {{{depName}}}:",
+  "commitMessageTopic": "",
+  "commitMessageLowerCase": "never",
+  "minimumReleaseAge": "7 days",
+  "automerge": true,
+  "automergeType": "pr",
+  "platformAutomerge": true,
+  "automergeStrategy": "squash",
+  "packageRules": [
+    {
+      "matchPackageNames": ["bun", "@types/bun"],
+      "groupName": "Bun",
+      "groupSlug": "bun",
+      "separateMajorMinor": false,
+      "commitMessagePrefix": "[deps] Bun:",
+      "commitMessageAction": "Update",
+      "commitMessageExtra": "",
+      "group": {
+        "commitMessageTopic": "dependencies"
+      }
+    },
+    {
+      "matchPackageNames": ["oxlint", "@oxlint/plugins", "oxlint-tsgolint"],
+      "groupName": "Oxlint",
+      "groupSlug": "oxlint",
+      "separateMajorMinor": false,
+      "commitMessagePrefix": "[deps] Oxlint:",
+      "commitMessageAction": "Update",
+      "commitMessageExtra": "",
+      "group": {
+        "commitMessageTopic": "dependencies"
+      }
+    }
+  ]
+}
