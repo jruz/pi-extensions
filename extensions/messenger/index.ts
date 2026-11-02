@@ -2,7 +2,6 @@ import { randomUUID } from "node:crypto";
 import { homedir } from "node:os";
 import { join, resolve, sep } from "node:path";
 import { Type, type Static } from "typebox";
-import { StringEnum } from "@earendil-works/pi-ai";
 import { truncateHead } from "@earendil-works/pi-coding-agent";
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { formatPeers, POLL_INTERVAL_MS, type AgentRecord } from "./protocol.ts";
@@ -16,19 +15,15 @@ import { createTransport } from "./transport.ts";
 const home = homedir();
 const projectRoot = resolve(home, "dev/projects");
 const socketDirectory = join(home, ".pi/agent/messenger/v3");
-const actions = StringEnum<["me", "peers", "history", "send", "reply"]>([
-  "me",
-  "peers",
-  "history",
-  "send",
-  "reply",
-]);
+const actions = Type.Enum(["me", "peers", "history", "send", "reply"], {
+  type: "string",
+});
 const agentReference = Type.String({
   minLength: 1,
   description: "Full UUID; shortened IDs are not accepted.",
 });
 const message = Type.String({ minLength: 1, maxLength: 8000 });
-const priorities = StringEnum<["normal", "urgent"]>(["normal", "urgent"]);
+const priorities = Type.Enum(["normal", "urgent"], { type: "string" });
 const limit = Type.Integer({ minimum: 1, maximum: 100 });
 const offset = Type.Integer({ minimum: 0 });
 const parameters = Type.Object({
