@@ -23,21 +23,23 @@
           }:"$PATH"
           exec ${pkgs.nushell}/bin/nu --no-config-file ${./scripts/sandbox.nu} "$@"
         '';
-        defaultPackages = with pkgs; [
-          deadnix
-          fd
-          just
-          nixfmt
-          nu-lint
-          nushell
-          ripgrep
-          sandbox
-          statix
-          tmux
-          woodpecker-cli
-          mermaid-cli
-          chromium
-        ];
+        defaultPackages =
+          with pkgs;
+          [
+            deadnix
+            fd
+            just
+            nixfmt
+            nu-lint
+            nushell
+            ripgrep
+            sandbox
+            statix
+            tmux
+            woodpecker-cli
+            mermaid-cli
+          ]
+          ++ pkgs.lib.optionals pkgs.stdenv.isLinux [ pkgs.chromium ];
       in
       {
         devShells.default = pkgs.mkShell {
