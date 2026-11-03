@@ -17,7 +17,7 @@ import type {
 import { parseColor, truncateToWidth } from "@earendil-works/pi-tui";
 import { PI_LOG_DIRECTORY } from "./shared/log-path.ts";
 const USAGE_URL = "https://chatgpt.com/backend-api/wham/usage";
-const USAGE_TTL_MS = 5 * 60 * 1000;
+const USAGE_TTL_MS = 60 * 1000;
 const USAGE_TIMEOUT_MS = 10 * 1000;
 const USAGE_LOCK_TTL_MS = 30 * 1000;
 const USAGE_LOCK_RETRY_MS = 1000;

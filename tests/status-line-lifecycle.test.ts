@@ -442,7 +442,9 @@ describe("status line lifecycle", () => {
       expect(footer).toContain("err");
       expect(footer).not.toContain("75%");
     });
-    await vi.advanceTimersByTimeAsync(300000);
+    await vi.advanceTimersByTimeAsync(59999);
+    expect(fetchMock).toHaveBeenCalledOnce();
+    await vi.advanceTimersByTimeAsync(1);
     await vi.waitFor(() => {
       expect(fetchMock).toHaveBeenCalledTimes(2);
       const footer = renderFooter(runtime.footers);
