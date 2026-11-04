@@ -12,7 +12,7 @@
     "@earendil-works/pi-ai": "1.4.0",
     "@earendil-works/pi-coding-agent": "1.4.0",
     "@earendil-works/pi-tui": "1.4.0",
-    "@types/node": "24.19.2",
+    "@types/node": "26.6.6",
     "typebox": "1.4.3",
     "vitest": "5.0.5",
     "@oxlint/plugins": "1.90.0",
@@ -28,7 +28,7 @@
   "type": "module",
   "engines": {
     "bun": "1.4.4",
-    "node": "24.22.2",
+    "node": "26.13.0",
     "pnpm": "12.16.1"
   },
   "dependencies": {
