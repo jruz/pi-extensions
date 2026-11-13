@@ -1,7 +1,7 @@
 import { realpathSync } from "node:fs";
 import { appendFile, mkdir } from "node:fs/promises";
-import { spawn } from "node:child_process";
-import type { ChildProcessWithoutNullStreams } from "node:child_process";
+import { spawnWithDiagnostics } from "../lib/subprocess.ts";
+import type { Subprocess } from "../lib/subprocess.ts";
 import { join, resolve } from "node:path";
 import type {
   ExtensionAPI,
@@ -29,6 +29,7 @@ type HookFailure = Readonly<{
   kind: "start" | "exit" | "timeout";
   message: string;
   exitCode?: number;
+  diagnostics?: string;
 }>;
 
 type HookResult =
@@ -36,6 +37,9 @@ type HookResult =
   | Readonly<{ status: "failure"; failure: HookFailure }>;
 
 const HOOK_TIMEOUT_MS = 5 * 60 * 1000;
+const DIAGNOSTIC_TAIL_LENGTH = 4096;
+
+const tailOf = (text: string): string => text.slice(-DIAGNOSTIC_TAIL_LENGTH);
 const AGENT_HOOK_LOG_PATH = resolve(PI_LOG_DIRECTORY, "pi-agent-hooks.log");
 
 const resolveHookDirectory = (): string => {
@@ -75,9 +79,13 @@ const runHook = async (
   args: readonly string[],
   input?: string,
 ): Promise<HookResult> => {
-  let child: ChildProcessWithoutNullStreams;
+  let diagnostics = "";
+  const recordDiagnostic = (chunk: Buffer): void => {
+    diagnostics = tailOf(diagnostics + chunk.toString("utf8"));
+  };
+  let child: Subprocess;
   try {
-    child = spawn(path, args, { stdio: "pipe" });
+    child = spawnWithDiagnostics(path, args, recordDiagnostic);
   } catch (error) {
     const message = error instanceof Error ? error.message : "unknown error";
     return { status: "failure", failure: { kind: "start", message } };
@@ -100,7 +108,7 @@ const runHook = async (
       child.kill();
       finish({
         status: "failure",
-        failure: { kind: "timeout", message: "hook timed out" },
+        failure: { kind: "timeout", message: "hook timed out", diagnostics },
       });
     }, HOOK_TIMEOUT_MS);
     child.once("error", (error) => {
@@ -120,11 +128,13 @@ const runHook = async (
           ? {
               kind: "exit" as const,
               message: "hook closed without an exit status",
+              diagnostics,
             }
           : {
               kind: "exit" as const,
               message: "hook exited unsuccessfully",
               exitCode,
+              diagnostics,
             };
       finish({ status: "failure", failure });
     });
@@ -152,7 +162,13 @@ const logHookFailure = async (
     if (failure.exitCode === undefined) return "";
     return ` exit_status=${failure.exitCode}`;
   })();
-  const line = `timestamp=${new Date().toISOString()} hook=${hook} lifecycle=${lifecycle} operation=${operation} failure=${JSON.stringify(message)}${exitCode}\n`;
+  const diagnostics = (() => {
+    if (failure instanceof Error) return "";
+    if (failure.diagnostics === undefined) return "";
+    if (failure.diagnostics === "") return "";
+    return ` diagnostics=${JSON.stringify(failure.diagnostics)}`;
+  })();
+  const line = `timestamp=${new Date().toISOString()} hook=${hook} lifecycle=${lifecycle} operation=${operation} failure=${JSON.stringify(message)}${exitCode}${diagnostics}\n`;
   try {
     await mkdir(PI_LOG_DIRECTORY, { recursive: true });
     await appendFile(AGENT_HOOK_LOG_PATH, line);

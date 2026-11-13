@@ -203,6 +203,28 @@
   },
   "overrides": [
     {
+      "files": ["extensions/**/*.ts"],
+      "rules": {
+        "no-restricted-imports": [
+          "error",
+          {
+            "paths": [
+              {
+                "name": "node:child_process",
+                "message": "Use lib/subprocess.ts so subprocess stderr is consumed instead of left unread.",
+                "allowTypeImports": true
+              },
+              {
+                "name": "child_process",
+                "message": "Use lib/subprocess.ts so subprocess stderr is consumed instead of left unread.",
+                "allowTypeImports": true
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
       "files": ["**/*.ts", "**/*.tsx", "**/*.mts", "**/*.cts"],
       "rules": {
         "constructor-super": "off",

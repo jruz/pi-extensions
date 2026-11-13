@@ -23,6 +23,16 @@ Global Pi extensions, loaded explicitly from `~/dev/projects/agent-config/pi/set
 - Scripts run on Bun.
 - pnpm is the only package manager.
 
+## Subprocesses
+
+- Use `lib/subprocess.ts` for subprocesses launched by extensions.
+- Consume piped output concurrently with execution.
+- Preserve diagnostics in failure results or logs inside the Pi TUI.
+- Forward diagnostics to stderr only outside the Pi TUI.
+- Keep stdout reserved for protocol output.
+- `no-restricted-imports` enforces the extension boundary in `.oxlintrc.json`.
+- Regression coverage lives in `tests/subprocess.test.ts`.
+
 ## Status-line verification
 
 Visually verify changes to `extensions/status-line.ts` with Pi in tmux:

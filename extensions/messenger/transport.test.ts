@@ -1,4 +1,4 @@
-import { spawn } from "node:child_process";
+import { spawnWithDiagnostics } from "../../lib/subprocess.ts";
 import { randomUUID } from "node:crypto";
 import { once } from "node:events";
 import { mkdtemp, readdir, rm } from "node:fs/promises";
@@ -12,10 +12,17 @@ const cleanups: (() => Promise<void>)[] = [];
 
 const crashEndpoint = async (directory: string, id: string): Promise<void> => {
   const path = join(directory, `${id}.sock`);
-  const child = spawn(process.execPath, [
-    "--eval",
-    `import { createServer } from "node:net"; createServer().listen(${JSON.stringify(path)}, () => process.stdout.write("ready"));`,
-  ]);
+  const diagnostics: Buffer[] = [];
+  const child = spawnWithDiagnostics(
+    process.execPath,
+    [
+      "--eval",
+      `import { createServer } from "node:net"; createServer().listen(${JSON.stringify(path)}, () => process.stdout.write("ready"));`,
+    ],
+    (chunk) => {
+      diagnostics.push(chunk);
+    },
+  );
   try {
     await new Promise<void>((resolve, reject) => {
       child.stdout.once("data", () => {
