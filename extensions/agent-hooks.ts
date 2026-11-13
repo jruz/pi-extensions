@@ -190,14 +190,15 @@ const reportFailure = async (
   await logHookFailure(hook, lifecycle, operation, failure);
 };
 
-const reportTimeoutToAgent = (
-  pi: ExtensionAPI,
+const reportTimeout = (
+  ctx: ExtensionContext,
   hook: string,
   failure: HookFailure,
 ): void => {
   if (failure.kind !== "timeout") return;
-  pi.sendUserMessage(
-    `The ${hook} hook timed out after five minutes. Check the hook before continuing.`,
+  ctx.ui.notify(
+    `The ${hook} hook timed out after five minutes; see ${AGENT_HOOK_LOG_PATH}.`,
+    "error",
   );
 };
 
@@ -232,7 +233,7 @@ const runStop = async (
   generation: number,
 ): Promise<HookResult> => {
   const path = piHook("on_stop");
-  return runHookWithStatus(hookStatus, ctx, generation, "stop", path, ["pi"]);
+  return runHookWithStatus(hookStatus, ctx, generation, "stop", path, []);
 };
 
 const runPreToolUse = async (
@@ -277,7 +278,7 @@ export default function (pi: ExtensionAPI): void {
     if (result.status === "failure") {
       await reportFailure("input", "input", "run", result.failure);
       if (!hookStatus.isSessionActive(generation)) return;
-      reportTimeoutToAgent(pi, "input", result.failure);
+      reportTimeout(ctx, "input", result.failure);
     }
   });
 
@@ -289,7 +290,7 @@ export default function (pi: ExtensionAPI): void {
     if (result.status === "failure") {
       await reportFailure("tool_call", "tool_call", "run", result.failure);
       if (!hookStatus.isSessionActive(generation)) return { block: false };
-      reportTimeoutToAgent(pi, "tool_call", result.failure);
+      reportTimeout(ctx, "tool_call", result.failure);
       return { block: false };
     }
     if (result.output === "") return { block: false };
@@ -306,7 +307,8 @@ export default function (pi: ExtensionAPI): void {
     }
   });
 
-  pi.on("agent_settled", async (_event, ctx) => {
+  pi.on("agent_settled", async (event, ctx) => {
+    if (event.aborted) return;
     const branch = ctx.sessionManager.getBranch();
     if (lastTurnFailed(branch)) return;
     const generation = hookStatus.currentGeneration();
@@ -321,10 +323,11 @@ export default function (pi: ExtensionAPI): void {
       );
       if (!hookStatus.isSessionActive(generation)) return;
       if (result.failure.kind === "timeout") {
-        reportTimeoutToAgent(pi, "agent_settled", result.failure);
+        reportTimeout(ctx, "agent_settled", result.failure);
       } else {
-        pi.sendUserMessage(
+        ctx.ui.notify(
           `Agent hook infrastructure failure (${result.failure.kind}: ${result.failure.message}); see ${AGENT_HOOK_LOG_PATH}.`,
+          "error",
         );
       }
       return;
@@ -334,16 +337,15 @@ export default function (pi: ExtensionAPI): void {
       const parsed = parseJson(result.output);
       if (!isStopDecision(parsed))
         throw new Error("hook returned an invalid stop response");
-      pi.sendUserMessage(
-        `The stop checks failed. Fix these issues before finishing:\n${parsed.reason}`,
-      );
+      ctx.ui.notify(`The stop checks failed:\n${parsed.reason}`, "warning");
     } catch (error) {
       const failure =
         error instanceof Error ? error : new Error("unknown error");
       await reportFailure("agent_settled", "agent_settled", "parse", failure);
       if (!hookStatus.isSessionActive(generation)) return;
-      pi.sendUserMessage(
+      ctx.ui.notify(
         `Agent hook protocol failure; see ${AGENT_HOOK_LOG_PATH}.`,
+        "error",
       );
     }
   });
