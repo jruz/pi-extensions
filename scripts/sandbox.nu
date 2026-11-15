@@ -1,98 +1,206 @@
-def host-output [command: string, ...args: string]: nothing -> string {
-    let result = (run-external $command ...$args | complete)
-    if $result.exit_code != 0 {
-        error make {msg: $result.stderr}
+module log {
+    export def error [msg: string]: nothing -> nothing {
+        print --stderr $"[(ansi red)ERROR(ansi reset)] ($msg)"
     }
-    $result.stdout | str trim
+
+    export def ok [msg: string]: nothing -> nothing {
+        print --stderr $"[(ansi green)OK(ansi reset)] ($msg)"
+    }
 }
 
-def ensure-image [root: path, config: record]: nothing -> string {
-    let dockerfile = (open --raw ($root | path join $"Dockerfile.($config.name)"))
+use log
+
+const CONFIG_TYPES = {
+    readonlyHomeDirectories: list<string>
+    agerManifest: string
+}
+
+const RUNTIME_COMMANDS = {
+    bun: [bun]
+    node: [node pnpm]
+    rust: [cargo cargo-* rustc rustup rustfmt rust-analyzer sqlx]
+}
+
+const BUILT_RUNTIMES = [node rust]
+
+def known-commands []: nothing -> list<string> {
+    $RUNTIME_COMMANDS | values | flatten
+}
+
+def help-text []: nothing -> string {
+    let runtimes = ($RUNTIME_COMMANDS
+        | items {|runtime, commands| $"  ($runtime): ($commands | str join ', ')" }
+        | str join "\n")
+    [
+        "Run a command inside its runtime container."
+        ""
+        "Usage:"
+        "  sandbox <command> [...args]  run a command in its runtime container"
+        "  sandbox build [--force]      build missing images for existing Dockerfiles, --force rebuilds all"
+        "  sandbox --help               show this help"
+        ""
+        "Commands:"
+        $runtimes
+    ] | str join "\n"
+}
+
+def matches-pattern [pattern: string]: string -> bool {
+    $in =~ $"^($pattern | str replace --all '*' '.*')$"
+}
+
+def runtimes-of [command: string]: nothing -> list<string> {
+    ($RUNTIME_COMMANDS
+        | transpose runtime commands
+        | where ($it.commands | any {|pattern| $command | matches-pattern $pattern })
+        | get runtime)
+}
+
+def is-known [command: string]: nothing -> bool {
+    runtimes-of $command | is-not-empty
+}
+
+def runtime-of [command: string]: nothing -> string {
+    runtimes-of $command | first
+}
+
+def unknown-command-text [command: string]: nothing -> string {
+    $"sandbox: unknown command: ($command)\nknown commands: (known-commands | str join ', ')"
+}
+
+def repo-root []: nothing -> path {
+    ^git rev-parse --show-toplevel | str trim
+}
+
+def dockerfile-path [root: path, name: string]: nothing -> path {
+    $root | path join $"Dockerfile.($name)"
+}
+
+def image-tag [dockerfile: string, config: record]: nothing -> string {
     let key = ([$dockerfile $config.build_args]
         | to json --raw
         | hash sha256
         | str substring 0..15)
-    let image = $"sandbox-($config.name):($key)"
-    let lookup = (host-output docker image ls '--quiet' '--filter' $"reference=($image)")
-    if ($lookup | is-not-empty) {
-        return $image
-    }
-    let args = ($config.build_args
+    $"sandbox-($config.name):($key)"
+}
+
+def image-exists [image: string]: nothing -> bool {
+    let lookup = (^docker image ls --quiet --filter $"reference=($image)")
+    $lookup | str trim | is-not-empty
+}
+
+def build-image []: record -> nothing {
+    let spec = $in
+    let args = ($spec.build_args
         | items {|name, value| [--build-arg $"($name)=($value)"] }
         | flatten)
-    print --stderr $"sandbox: building ($image)"
-    let built = (try {
-        $dockerfile | ^docker build --quiet --tag $image ...$args -
-    } catch {|err|
-        error make {msg: $err.msg}
-    })
-    $built | str trim
+    $spec.dockerfile | ^docker build --tag $spec.image ...$args -
 }
 
-def pnpm-mounts []: nothing -> list<string> {
-    let store = ($env.HOME | path join .local share pnpm)
-    let cache = ($env.HOME | path join .cache pnpm)
-    mkdir $store $cache
-    [
-        --mount $"type=bind,src=($store),dst=($store)"
-        --mount $"type=bind,src=($cache),dst=($cache)"
-        --env $"pnpm_config_store_dir=($store)/store"
-        --env $"pnpm_config_cache_dir=($cache)"
-    ]
+def image-spec [root: path]: record -> record {
+    let config = $in
+    let dockerfile = (open --raw (dockerfile-path $root $config.name))
+    {
+        image: (image-tag $dockerfile $config)
+        dockerfile: $dockerfile
+        build_args: $config.build_args
+    }
 }
 
-def cargo-mounts []: nothing -> list<string> {
-    let registry = ($env.HOME | path join .cargo registry)
-    let git = ($env.HOME | path join .cargo git)
-    mkdir $registry $git
-    [
-        --mount $"type=bind,src=($registry),dst=($registry)"
-        --mount $"type=bind,src=($git),dst=($git)"
-        --env $"CARGO_HOME=($env.HOME)/.cargo"
-        --env CARGO_TARGET_DIR=/app/target/docker
-    ]
+def ensure-image []: record -> nothing {
+    let spec = $in
+    if not (image-exists $spec.image) {
+        $spec | build-image
+    }
 }
 
-def runtime-config [root: path, command: string]: nothing -> record {
-    match $command {
-        bun => {
-            let version = (open ($root | path join package.json) | get engines.bun)
-            {image: $"oven/bun:($version)", mounts: []}
-        }
-        node | pnpm => {
+def image-config [root: path, runtime: string]: nothing -> record {
+    match $runtime {
+        node => {
             let engines = (open ($root | path join package.json) | get engines)
             {
-                image: (ensure-image $root {
-                    name: node
-                    build_args: {
-                        NODE_VERSION: $engines.node
-                        PNPM_VERSION: $engines.pnpm
-                    }
-                })
-                mounts: (pnpm-mounts)
+                name: node
+                build_args: {
+                    NODE_VERSION: $engines.node
+                    PNPM_VERSION: $engines.pnpm
+                }
             }
         }
-        _ => {
+        rust => {
             let version = (open ($root | path join rust-toolchain.toml) | get toolchain.channel)
             {
-                image: (ensure-image $root {
-                    name: rust
-                    build_args: {RUST_VERSION: $version}
-                })
-                mounts: (cargo-mounts)
+                name: rust
+                build_args: {RUST_VERSION: $version}
             }
         }
     }
 }
 
-def readonly-home-mounts [directories: list<string>]: nothing -> list<string> {
-    ($directories
-        | each {|directory| $env.HOME | path join $directory }
-        | where ($it | path exists)
+def runtime-image [root: path, runtime: string]: nothing -> string {
+    match $runtime {
+        bun => {
+            let version = (open ($root | path join package.json) | get engines.bun)
+            $"oven/bun:($version)"
+        }
+        _ => {
+            let spec = (image-config $root $runtime | image-spec $root)
+            $spec | ensure-image
+            $spec.image
+        }
+    }
+}
+
+def pnpm-store []: nothing -> path {
+    $env.HOME | path join .local share pnpm
+}
+
+def pnpm-cache []: nothing -> path {
+    $env.HOME | path join .cache pnpm
+}
+
+def cache-dirs [runtime: string]: nothing -> list<path> {
+    match $runtime {
+        bun => []
+        node => [(pnpm-store) (pnpm-cache)]
+        rust => [($env.HOME | path join .cargo registry) ($env.HOME | path join .cargo git)]
+    }
+}
+
+def runtime-env [runtime: string]: nothing -> list<string> {
+    match $runtime {
+        bun => []
+        node => [
+            --env $"pnpm_config_store_dir=(pnpm-store)/store"
+            --env $"pnpm_config_cache_dir=(pnpm-cache)"
+        ]
+        rust => [
+            --env $"CARGO_HOME=($env.HOME)/.cargo"
+            --env CARGO_TARGET_DIR=/app/target/docker
+        ]
+    }
+}
+
+def create-dirs []: list<path> -> list<path> {
+    let directories = $in
+    for directory in $directories {
+        mkdir $directory
+    }
+    $directories
+}
+
+def bind-mounts [--readonly]: list<path> -> list<string> {
+    let suffix = if $readonly { ",readonly" } else { "" }
+    ($in
         | each {|directory|
-            [--mount $"type=bind,src=($directory),dst=($directory),readonly"]
+            [--mount $"type=bind,src=($directory),dst=($directory)($suffix)"]
         }
         | flatten)
+}
+
+def readonly-home-mounts []: list<string> -> list<string> {
+    ($in
+        | each {|directory| $env.HOME | path join $directory }
+        | where ($it | path exists)
+        | bind-mounts --readonly)
 }
 
 def ager-mounts [root: path, manifest: path]: nothing -> list<string> {
@@ -105,19 +213,34 @@ def ager-mounts [root: path, manifest: path]: nothing -> list<string> {
         | flatten)
 }
 
-def configured-mounts [root: path, config: record]: nothing -> list<string> {
-    let keys = ($config | columns)
-    if ($keys | any {|key| $key not-in [readonlyHomeDirectories agerManifest] }) {
-        error make {
-            msg: "sandbox.json: only readonlyHomeDirectories and agerManifest are supported"
-        }
+def config-errors []: record -> list<string> {
+    let config = $in
+    let unknown = ($config | columns | where $CONFIG_TYPES not-has $it)
+    if ($unknown | is-not-empty) {
+        return [$"sandbox.json: unsupported keys: ($unknown | str join ', ')"]
     }
-    let home = if readonlyHomeDirectories in $keys {
-        readonly-home-mounts $config.readonlyHomeDirectories
+    $config
+        | items {|key, value|
+            let actual = ($value | describe)
+            let expected = ($CONFIG_TYPES | get --optional $key)
+            let empty_list = ($expected == "list<string>" and $actual == "list<any>" and ($value | is-empty))
+            if $actual != $expected and not $empty_list {
+                [$"sandbox.json: ($key) must be ($expected), got ($actual)"]
+            } else {
+                []
+            }
+        }
+        | flatten
+}
+
+def configured-mounts [root: path]: record -> list<string> {
+    let config = $in
+    let home = if $config has readonlyHomeDirectories {
+        $config.readonlyHomeDirectories | readonly-home-mounts
     } else {
         []
     }
-    let secrets = if agerManifest in $keys {
+    let secrets = if $config has agerManifest {
         ager-mounts $root $config.agerManifest
     } else {
         []
@@ -125,22 +248,31 @@ def configured-mounts [root: path, config: record]: nothing -> list<string> {
     $home | append $secrets
 }
 
-def project-mounts [root: path]: nothing -> list<string> {
+def project-config [root: path]: nothing -> record {
     let config = ($root | path join sandbox.json)
     if not ($config | path exists) {
-        return []
+        return {}
     }
-    configured-mounts $root (open $config)
+    open $config
 }
 
-def run-sandbox [command: string, args: list<string>]: nothing -> nothing {
-    let root = (host-output git rev-parse '--show-toplevel')
+def tty-flags []: nothing -> list<string> {
+    if (is-terminal --stdin) and (is-terminal --stdout) { [--tty] } else { [] }
+}
+
+def run-sandbox [command: string, args: list<string>]: record -> nothing {
+    let project = $in
+    let root = $project.root
+    let config = $project.config
     let relative = ($env.PWD | path relative-to $root)
-    let runtime = (runtime-config $root $command)
-    let uid = (host-output id '--user')
-    let gid = (host-output id '--group')
+    let runtime = (runtime-of $command)
+    let image = (runtime-image $root $runtime)
+    let caches = (cache-dirs $runtime | create-dirs)
+    let uid = (^id --user | str trim)
+    let gid = (^id --group | str trim)
     (exec docker run
         --interactive
+        ...(tty-flags)
         --rm
         --user $"($uid):($gid)"
         --read-only
@@ -150,26 +282,62 @@ def run-sandbox [command: string, args: list<string>]: nothing -> nothing {
         --tmpfs $env.HOME
         --env $"HOME=($env.HOME)"
         --env TMPDIR=/tmp
+        --env REVISION
         --mount $"type=bind,src=($root),dst=/app"
         --workdir $"/app/($relative)"
-        ...$runtime.mounts
-        ...(project-mounts $root)
-        $runtime.image
+        ...($caches | bind-mounts)
+        ...(runtime-env $runtime)
+        ...($config | configured-mounts $root)
+        $image
         $command
         ...$args)
 }
 
-def --wrapped main [command: string, ...args: string]: nothing -> nothing {
-    let supported = ($command in [bun node pnpm cargo rustc rustup rustfmt rust-analyzer sqlx]
-        or ($command | str starts-with cargo-))
-    if not $supported {
-        print --stderr $"sandbox: unsupported command: ($command)"
+# Build missing runtime images
+def "main build" [
+    --force # rebuild images even when they already exist
+]: nothing -> nothing {
+    let root = (repo-root)
+    let runtimes = ($BUILT_RUNTIMES | where (dockerfile-path $root $it | path exists))
+    if ($runtimes | is-empty) {
+        log error $"sandbox: no Dockerfile found for: ($BUILT_RUNTIMES | str join ', ')"
         exit 1
     }
-    try {
-        run-sandbox $command $args
-    } catch {|err|
-        print --stderr $err.msg
-        exit 1
+    for runtime in $runtimes {
+        let spec = (image-config $root $runtime | image-spec $root)
+        let status = if $force or not (image-exists $spec.image) {
+            $spec | build-image
+            "built"
+        } else {
+            "is up to date"
+        }
+        print $spec.image
+        log ok $"sandbox: image ($runtime) ($status)"
+    }
+}
+
+# Run a command inside its runtime container
+def --wrapped main [
+    command: string # command to run, such as cargo or pnpm
+    ...args: string # arguments forwarded to the command
+]: nothing -> nothing {
+    match $command {
+        "--help" | "-h" => { print (help-text) }
+        _ if (is-known $command) => {
+            let root = (repo-root)
+            let config = (project-config $root)
+            let errors = ($config | config-errors)
+            if ($errors | is-not-empty) {
+                for message in $errors {
+                    log error $message
+                }
+                exit 1
+            }
+            {root: $root, config: $config} | run-sandbox $command $args
+        }
+        _ => {
+            log error (unknown-command-text $command)
+            exit 1
+        }
     }
 }
