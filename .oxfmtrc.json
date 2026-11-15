@@ -6,6 +6,6 @@
   "semi": true,
   "singleQuote": false,
   "trailingComma": "all",
-  "sortPackageJson": false,
+  "sortPackageJson": true,
   "ignorePatterns": ["node_modules/", "pnpm-lock.yaml", "target/", "tmp/"]
 }

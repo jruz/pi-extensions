@@ -1,5 +1,7 @@
 {
   "name": "pi-extensions",
+  "private": true,
+  "type": "module",
   "scripts": {
     "knip-check": "knip",
     "knip-production-check": "knip --production",
@@ -8,30 +10,28 @@
     "oxlint-rules-check": "node --test .oxlint/*.test.ts",
     "tsc-check": "tsc"
   },
+  "dependencies": {
+    "zod": "4.6.7"
+  },
   "devDependencies": {
     "@earendil-works/pi-ai": "1.4.0",
     "@earendil-works/pi-coding-agent": "1.4.0",
     "@earendil-works/pi-tui": "1.5.0",
-    "@types/node": "26.6.6",
-    "typebox": "1.4.5",
-    "vitest": "5.1.0",
     "@oxlint/plugins": "1.90.0",
     "@tsconfig/strictest": "2.0.8",
     "@types/bun": "1.4.4",
+    "@types/node": "26.6.6",
     "knip": "6.44.2",
     "oxfmt": "0.77.0",
     "oxlint": "1.90.0",
     "oxlint-tsgolint": "7.0.2005",
-    "typescript": "7.0.2"
+    "typebox": "1.4.5",
+    "typescript": "7.0.2",
+    "vitest": "5.1.0"
   },
-  "private": true,
-  "type": "module",
   "engines": {
     "bun": "1.4.4",
     "node": "26.13.0",
     "pnpm": "12.18.0"
-  },
-  "dependencies": {
-    "zod": "4.6.7"
   }
 }
