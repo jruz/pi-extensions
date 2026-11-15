@@ -8,6 +8,7 @@ import type {
   ExtensionContext,
 } from "@earendil-works/pi-coding-agent";
 import { getAgentDir } from "@earendil-works/pi-coding-agent";
+import { z } from "zod";
 import {
   createHookStatus,
   type HookStatus,
@@ -20,10 +21,16 @@ type HookDecision = Readonly<{
   reason?: string;
 }>;
 
-type StopDecision = Readonly<{
-  decision: "block";
-  reason: string;
-}>;
+const StopResponseSchema = z.union([
+  z.object({ decision: z.literal("block"), reason: z.string() }).readonly(),
+  z
+    .object({
+      status: z.literal("warning"),
+      reason: z.string(),
+      diagnostics: z.string(),
+    })
+    .readonly(),
+]);
 
 type HookFailure = Readonly<{
   kind: "start" | "exit" | "timeout";
@@ -62,15 +69,6 @@ const isHookDecision = (value: unknown): value is HookDecision => {
   if (typeof decision["block"] !== "boolean") return false;
   return (
     decision["reason"] === undefined || typeof decision["reason"] === "string"
-  );
-};
-
-const isStopDecision = (value: unknown): value is StopDecision => {
-  if (typeof value !== "object" || value === null) return false;
-  const entries = Object.entries(value);
-  const decision: Record<string, unknown> = Object.fromEntries(entries);
-  return (
-    decision["decision"] === "block" && typeof decision["reason"] === "string"
   );
 };
 
@@ -169,6 +167,10 @@ const logHookFailure = async (
     return ` diagnostics=${JSON.stringify(failure.diagnostics)}`;
   })();
   const line = `timestamp=${new Date().toISOString()} hook=${hook} lifecycle=${lifecycle} operation=${operation} failure=${JSON.stringify(message)}${exitCode}${diagnostics}\n`;
+  await appendHookLog(line);
+};
+
+const appendHookLog = async (line: string): Promise<void> => {
   try {
     await mkdir(PI_LOG_DIRECTORY, { recursive: true });
     await appendFile(AGENT_HOOK_LOG_PATH, line);
@@ -202,6 +204,25 @@ const reportTimeout = (
   );
 };
 
+const reportStopResponse = async (
+  hookStatus: HookStatus,
+  ctx: ExtensionContext,
+  generation: number,
+  response: z.infer<typeof StopResponseSchema>,
+): Promise<void> => {
+  if ("status" in response) {
+    const line = `timestamp=${new Date().toISOString()} hook=on_stop warning=${JSON.stringify(response)}\n`;
+    await appendHookLog(line);
+    if (!hookStatus.isSessionActive(generation)) return;
+    ctx.ui.notify(
+      `Desktop notification couldn’t be sent.\n${response.reason}\nLog: ${AGENT_HOOK_LOG_PATH}`,
+      "warning",
+    );
+    return;
+  }
+  ctx.ui.notify(`The stop checks failed:\n${response.reason}`, "warning");
+};
+
 const runHookWithStatus = async (
   hookStatus: HookStatus,
   ctx: ExtensionContext,
@@ -233,7 +254,7 @@ const runStop = async (
   generation: number,
 ): Promise<HookResult> => {
   const path = piHook("on_stop");
-  return runHookWithStatus(hookStatus, ctx, generation, "stop", path, []);
+  return runHookWithStatus(hookStatus, ctx, generation, "stop", path, ["pi"]);
 };
 
 const runPreToolUse = async (
@@ -326,7 +347,7 @@ export default function (pi: ExtensionAPI): void {
         reportTimeout(ctx, "agent_settled", result.failure);
       } else {
         ctx.ui.notify(
-          `Agent hook infrastructure failure (${result.failure.kind}: ${result.failure.message}); see ${AGENT_HOOK_LOG_PATH}.`,
+          `Stop hook couldn’t finish.\nLog: ${AGENT_HOOK_LOG_PATH}`,
           "error",
         );
       }
@@ -334,10 +355,9 @@ export default function (pi: ExtensionAPI): void {
     }
     if (result.output === "") return;
     try {
-      const parsed = parseJson(result.output);
-      if (!isStopDecision(parsed))
-        throw new Error("hook returned an invalid stop response");
-      ctx.ui.notify(`The stop checks failed:\n${parsed.reason}`, "warning");
+      const output = parseJson(result.output);
+      const parsed = StopResponseSchema.parse(output);
+      await reportStopResponse(hookStatus, ctx, generation, parsed);
     } catch (error) {
       const failure =
         error instanceof Error ? error : new Error("unknown error");

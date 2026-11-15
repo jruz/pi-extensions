@@ -110,8 +110,8 @@ afterAll(async () => {
   await rm(hooks, { recursive: true, force: true });
 });
 
-it("runs the argument-free stop hook without requesting another model turn", async () => {
-  const runtime = await setup('test "$#" -eq 0');
+it("selects the Pi stop-hook protocol without requesting another model turn", async () => {
+  const runtime = await setup('test "$#" -eq 1 && test "$1" = pi');
   await runtime.runner.emit({ type: "agent_settled", aborted: false });
   expect(runtime.errors).not.toHaveBeenCalled();
   expect(runtime.notify).not.toHaveBeenCalled();
@@ -120,7 +120,7 @@ it("runs the argument-free stop hook without requesting another model turn", asy
 });
 
 it.each([
-  ["exit 1", "infrastructure failure", "error"],
+  ["exit 1", "Stop hook couldn’t finish.", "error"],
   ["printf 'invalid json'", "protocol failure", "error"],
   [
     `printf '%s' '{"decision":"block","reason":"checks failed"}'`,
@@ -140,6 +140,55 @@ it.each([
     expect(runtime.sendMessage).not.toHaveBeenCalled();
   },
 );
+
+it.each([
+  ["printf 'synthetic stop diagnostic\\n' >&2; exit 17", 17],
+  ["exit 2", 2],
+])("keeps stop crash diagnostics in the log: %s", async (script, exitCode) => {
+  const runtime = await setup(script);
+  await runtime.runner.emit({ type: "agent_settled", aborted: false });
+  const logPath = join(hooks, "pi-agent-hooks.log");
+  const log = await readFile(logPath, "utf8");
+  expect(log).toContain(`exit_status=${exitCode}`);
+  const notification = `Stop hook couldn’t finish.\nLog: ${logPath}`;
+  expect(runtime.notify).toHaveBeenCalledExactlyOnceWith(notification, "error");
+  expect(runtime.errors).not.toHaveBeenCalled();
+  expect(runtime.sendUserMessage).not.toHaveBeenCalled();
+  expect(runtime.sendMessage).not.toHaveBeenCalled();
+});
+
+it("logs and displays notification warnings without requesting model work", async () => {
+  const warning = {
+    status: "warning",
+    reason: "ntfy rate limit reached (HTTP 429).",
+    diagnostics: "provider=ntfy http_status=429",
+  };
+  const output = JSON.stringify(warning);
+  const runtime = await setup(`printf '%s' '${output}'`);
+  await runtime.runner.emit({ type: "agent_settled", aborted: false });
+  const logPath = join(hooks, "pi-agent-hooks.log");
+  const notification = `Desktop notification couldn’t be sent.\nntfy rate limit reached (HTTP 429).\nLog: ${logPath}`;
+  expect(runtime.notify).toHaveBeenCalledExactlyOnceWith(
+    notification,
+    "warning",
+  );
+  const log = await readFile(logPath, "utf8");
+  expect(log).toContain(`hook=on_stop warning=${output}`);
+  expect(runtime.errors).not.toHaveBeenCalled();
+  expect(runtime.sendUserMessage).not.toHaveBeenCalled();
+  expect(runtime.sendMessage).not.toHaveBeenCalled();
+});
+
+it("rejects malformed warning responses as protocol errors", async () => {
+  const runtime = await setup(
+    `printf '%s' '{"status":"warning","reason":"missing diagnostics"}'`,
+  );
+  await runtime.runner.emit({ type: "agent_settled", aborted: false });
+  const message: unknown = expect.stringContaining("protocol failure");
+  expect(runtime.notify).toHaveBeenCalledWith(message, "error");
+  expect(runtime.sendUserMessage).not.toHaveBeenCalled();
+  expect(runtime.sendMessage).not.toHaveBeenCalled();
+});
 
 it("preserves subprocess diagnostics in the hook log", async () => {
   const runtime = await setup("printf 'synthetic stop diagnostic' >&2; exit 1");
