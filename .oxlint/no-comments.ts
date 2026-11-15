@@ -1,17 +1,6 @@
 import { defineRule } from "@oxlint/plugins";
 
 const noComments = defineRule({
-  meta: {
-    type: "suggestion",
-    docs: {
-      description: "Disallow comments",
-    },
-    messages: {
-      noComments:
-        "Comments are not allowed. Make the code self-explanatory instead.",
-    },
-    schema: [],
-  },
   create(context) {
     return {
       Program() {
@@ -23,6 +12,17 @@ const noComments = defineRule({
           });
       },
     };
+  },
+  meta: {
+    docs: {
+      description: "Disallow comments",
+    },
+    messages: {
+      noComments:
+        "Comments are not allowed. Make the code self-explanatory instead.",
+    },
+    schema: [],
+    type: "suggestion",
   },
 });
 

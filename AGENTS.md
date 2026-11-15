@@ -19,7 +19,7 @@ Global Pi extensions, loaded explicitly from `~/dev/projects/agent-config/pi/set
 
 ## Runtimes
 
-- Extensions and their tests run on Node 24 with Vitest.
+- Extensions and their tests run on Node with Vitest; `engines` in `package.json` pins the version.
 - Scripts run on Bun.
 - pnpm is the only package manager.
 
@@ -48,7 +48,7 @@ Check the captured footer, not only unit tests.
 
 ## Recipes
 
-- `just setup` — install dependencies
-- `just check` — run checks and tests
+- `just setup` — install dependencies and enable git hooks
+- `just check` — run checks
 - `just fix` — format and fix files
 - `just test` — run tests

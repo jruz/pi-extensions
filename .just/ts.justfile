@@ -4,10 +4,10 @@ check:
     sandbox pnpm run \
       --parallel \
       --no-bail \
-      '/^(knip(-production)?|oxfmt|oxlint|tsc)-check$/'
+      '/-check$/'
 
 test:
-    just ts::oxlint-rules-check
+    just ts::oxlint-rules-test
 
 fix:
     just ts::oxlint-fix
@@ -47,8 +47,8 @@ oxlint-check:
 oxlint-fix:
     sandbox pnpm exec oxlint --config .oxlintrc.json --fix .
 
-oxlint-rules-check:
-    sandbox pnpm run oxlint-rules-check
+oxlint-rules-test:
+    sandbox pnpm run oxlint-rules-test
 
 skill-check:
     bun "$HOME/.pi/agent/skills/typescript/skill-check/main.ts"

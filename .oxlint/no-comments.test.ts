@@ -8,12 +8,6 @@ const tester = new RuleTester({
 
 await it("rejects comments and accepts shebangs and comment-like strings", () => {
   tester.run("no-comments", noComments, {
-    valid: [
-      "const total = 1;",
-      "#!/usr/bin/env node\nconst total = 1;",
-      'const url = "https://adsmart.cl";',
-      'const pattern = "/* not a comment */";',
-    ],
     invalid: [
       {
         code: "// line comment\nconst total = 1;",
@@ -35,6 +29,12 @@ await it("rejects comments and accepts shebangs and comment-like strings", () =>
         code: "// @ts-expect-error\nconst total: string = 1;",
         errors: [{ messageId: "noComments" }],
       },
+    ],
+    valid: [
+      "const total = 1;",
+      "#!/usr/bin/env node\nconst total = 1;",
+      'const url = "https://adsmart.cl";',
+      'const pattern = "/* not a comment */";',
     ],
   });
 });

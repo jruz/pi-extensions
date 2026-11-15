@@ -8,11 +8,6 @@ const tester = new RuleTester({
 
 await it("rejects enums and accepts union types and const objects", () => {
   tester.run("no-enums", noEnums, {
-    valid: [
-      'type Status = "ready" | "running" | "done";',
-      'const Status = { Ready: "ready", Done: "done" } as const;',
-      "const enumLabel = 'ready';",
-    ],
     invalid: [
       {
         code: "enum Status { Ready, Done }",
@@ -34,6 +29,11 @@ await it("rejects enums and accepts union types and const objects", () => {
         code: "declare enum Status { Ready, Done }",
         errors: [{ messageId: "noEnums" }],
       },
+    ],
+    valid: [
+      'type Status = "ready" | "running" | "done";',
+      'const Status = { Ready: "ready", Done: "done" } as const;',
+      "const enumLabel = 'ready';",
     ],
   });
 });

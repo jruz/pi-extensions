@@ -7,7 +7,7 @@
     "knip-production-check": "knip --production",
     "oxfmt-check": "oxfmt --check",
     "oxlint-check": "oxlint --config .oxlintrc.json --deny-warnings --report-unused-disable-directives-severity error .",
-    "oxlint-rules-check": "node --test .oxlint/*.test.ts",
+    "oxlint-rules-test": "node --test .oxlint/*.test.ts",
     "tsc-check": "tsc"
   },
   "dependencies": {

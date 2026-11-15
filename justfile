@@ -4,26 +4,23 @@ mod bun '.just/bun.justfile'
 mermaid-cli := "mmdc"
 mermaid-browser := "chromium"
 
-skill-pull:
-    bun "$HOME/.pi/agent/skills/typescript/skill-pull/main.ts"
-
 setup:
     just ts::install
+    git config core.hooksPath .githooks
 
 check:
     just ts::check
     just ci-check
     just nix-check
-    just test
 
 fix:
     just ts::fix
     just nix-fix
 
 test:
-    just node-test
+    just ts::test
     just bun::test
-    just ts::oxlint-rules-check
+    just node-test
 
 node-test:
     sandbox pnpm exec vitest run

@@ -11,7 +11,7 @@ Select a Mermaid diagram or HTML page; both refresh every second when their sour
 Mermaid pages load Mermaid 11.12.0 from jsDelivr. HTML pages render without Mermaid.
 
 Render locally with `just mermaid-render`. Generated SVGs are ignored by Git.
-`just mermaid-check` validates every diagram under `docs/` and runs in `just check`.
+`just mermaid-check` validates every diagram under `docs/`.
 
 ## Discovery and lifetime
 

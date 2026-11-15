@@ -1,8 +1,14 @@
 import { defineRule } from "@oxlint/plugins";
 
 const noEnums = defineRule({
+  create(context) {
+    return {
+      TSEnumDeclaration(node) {
+        context.report({ messageId: "noEnums", node });
+      },
+    };
+  },
   meta: {
-    type: "problem",
     docs: {
       description: "Disallow TypeScript enum declarations",
     },
@@ -10,13 +16,7 @@ const noEnums = defineRule({
       noEnums: "Use a union type or an as-const object instead of an enum.",
     },
     schema: [],
-  },
-  create(context) {
-    return {
-      TSEnumDeclaration(node) {
-        context.report({ node, messageId: "noEnums" });
-      },
-    };
+    type: "problem",
   },
 });
 

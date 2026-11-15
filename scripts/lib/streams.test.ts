@@ -1,10 +1,8 @@
 import { expect, test } from "bun:test";
 import { spawnSync } from "node:child_process";
-import { join } from "node:path";
 
-const runHelper = (module: string, statement: string) => {
-  const path = join(import.meta.dir, module);
-  const specifier = JSON.stringify(path);
+const runHelper = (module: URL, statement: string) => {
+  const specifier = JSON.stringify(module.href);
   const source = `import * as helper from ${specifier}; ${statement}`;
   const result = spawnSync("bun", ["--eval", source], { encoding: "utf8" });
   if (result.error !== undefined) throw result.error;
@@ -13,7 +11,7 @@ const runHelper = (module: string, statement: string) => {
 
 test("all diagnostic levels write only to stderr", () => {
   const result = runHelper(
-    "log.ts",
+    new URL("./log.ts", import.meta.url),
     `
     helper.log.info("starting");
     helper.log.warn("review");
@@ -32,7 +30,10 @@ test("all diagnostic levels write only to stderr", () => {
 });
 
 test("text output writes only to stdout", () => {
-  const result = runHelper("output.ts", 'helper.output.text("result");');
+  const result = runHelper(
+    new URL("./output.ts", import.meta.url),
+    'helper.output.text("result");',
+  );
   expect(result.status).toBe(0);
   expect(result.stdout).toBe("result\n");
   expect(result.stderr).toBe("");
@@ -40,7 +41,7 @@ test("text output writes only to stdout", () => {
 
 test("JSON output is formatted without diagnostic text", () => {
   const result = runHelper(
-    "output.ts",
+    new URL("./output.ts", import.meta.url),
     'helper.output.json({status: "ok", count: 2});',
   );
   expect(result.status).toBe(0);
@@ -50,7 +51,7 @@ test("JSON output is formatted without diagnostic text", () => {
 
 test("table output writes the rendered table only to stdout", () => {
   const result = runHelper(
-    "output.ts",
+    new URL("./output.ts", import.meta.url),
     'helper.output.table(["NAME"], [["Bun"]]);',
   );
   expect(result.status).toBe(0);

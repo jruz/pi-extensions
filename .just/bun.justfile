@@ -1,7 +1,4 @@
 set working-directory := '..'
 
-check:
-    just bun::test
-
 test:
-    sandbox bun test ./scripts
+    sandbox bun test scripts
