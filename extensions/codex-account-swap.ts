@@ -41,7 +41,7 @@ export default function (pi: ExtensionAPI): void {
     getArgumentCompletions: (prefix) =>
       accountNames
         .filter((value) => value.startsWith(prefix))
-        .map((value) => ({ value, label: value })),
+        .map((value) => ({ label: value, value })),
     handler: async (args, ctx) => {
       try {
         if (!ctx.isIdle())

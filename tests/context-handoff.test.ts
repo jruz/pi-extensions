@@ -49,15 +49,15 @@ const start = async (extensions: ExtensionFactory[] = [contextHandoff]) => {
     retry: { enabled: false },
   });
   const resourceLoader = new DefaultResourceLoader({
-    cwd: directory,
     agentDir: directory,
-    settingsManager,
-    noExtensions: true,
-    noSkills: true,
-    noPromptTemplates: true,
-    noThemes: true,
-    noContextFiles: true,
+    cwd: directory,
     extensionFactories: extensions,
+    noContextFiles: true,
+    noExtensions: true,
+    noPromptTemplates: true,
+    noSkills: true,
+    noThemes: true,
+    settingsManager,
   });
   await resourceLoader.reload();
   const modelRuntime = await ModelRuntime.create({
@@ -69,51 +69,51 @@ const start = async (extensions: ExtensionFactory[] = [contextHandoff]) => {
   const faux = fauxProvider({ models: [{ id: "handoff-test" }] });
   modelRuntime.registerNativeProvider(faux.provider);
   const { session } = await createAgentSession({
-    cwd: directory,
     agentDir: directory,
-    modelRuntime,
+    cwd: directory,
     model: faux.getModel(),
+    modelRuntime,
     resourceLoader,
-    settingsManager,
     sessionManager: SessionManager.inMemory(directory),
+    settingsManager,
   });
   const replacement = vi.fn<() => void>();
   const errors = vi.fn<(error: ExtensionError) => void>();
   await session.bindExtensions({
     commandContextActions: {
-      waitForIdle: () => session.waitForIdle(),
-      newSession: () => {
-        replacement();
-        return Promise.resolve({ cancelled: false });
-      },
       fork: vi
         .fn<ExtensionCommandContextActions["fork"]>()
         .mockRejectedValue(new Error("unexpected fork")),
       navigateTree: vi
         .fn<ExtensionCommandContextActions["navigateTree"]>()
         .mockRejectedValue(new Error("unexpected navigation")),
+      newSession: () => {
+        replacement();
+        return Promise.resolve({ cancelled: false });
+      },
+      reload: () => session.reload(),
       switchSession: vi
         .fn<ExtensionCommandContextActions["switchSession"]>()
         .mockRejectedValue(new Error("unexpected switch")),
-      reload: () => session.reload(),
+      waitForIdle: () => session.waitForIdle(),
     },
     onError: errors,
   });
   const usage = vi.spyOn(session, "getContextUsage");
-  usage.mockReturnValue({ tokens: 800, contextWindow: 1000, percent: 80 });
+  usage.mockReturnValue({ contextWindow: 1000, percent: 80, tokens: 800 });
   cleanups.push(async () => {
     await session.extensionRunner.emit({
-      type: "session_shutdown",
       reason: "quit",
+      type: "session_shutdown",
     });
     session.dispose();
-    await rm(directory, { recursive: true, force: true });
+    await rm(directory, { force: true, recursive: true });
   });
-  return { session, faux, replacement, errors, directory, usage };
+  return { directory, errors, faux, replacement, session, usage };
 };
 
 const writePlan = (content: string) => {
-  const call = fauxToolCall("write", { path: "PLAN.md", content });
+  const call = fauxToolCall("write", { content, path: "PLAN.md" });
   return fauxAssistantMessage(call);
 };
 
@@ -170,7 +170,7 @@ describe("context handoff", () => {
       const usage =
         percent === undefined
           ? undefined
-          : { tokens: null, contextWindow: 1000, percent };
+          : { contextWindow: 1000, percent, tokens: null };
       runtime.usage.mockReturnValue(usage);
       runtime.faux.setResponses([fauxAssistantMessage("done")]);
       await finish(runtime);
@@ -185,7 +185,7 @@ describe("context handoff", () => {
       pi.on("turn_end", (event) => ({
         entries: [
           ...event.entries,
-          { type: "custom", customType: "earlier-boundary" },
+          { customType: "earlier-boundary", type: "custom" },
         ],
       }));
     };
@@ -212,8 +212,8 @@ describe("context handoff", () => {
       const runtime = await start();
       runtime.faux.setResponses([
         fauxAssistantMessage("failed", {
-          stopReason,
           errorMessage: "test failure",
+          stopReason,
         }),
       ]);
       await finish(runtime);
@@ -230,8 +230,8 @@ describe("context handoff", () => {
       runtime.faux.setResponses([
         fauxAssistantMessage("done"),
         fauxAssistantMessage("failed", {
-          stopReason,
           errorMessage: "test failure",
+          stopReason,
         }),
       ]);
       await finish(runtime);
@@ -304,8 +304,8 @@ describe("context handoff", () => {
     runtime.session.sessionManager.newSession();
     runtime.session.agent.state.messages = [];
     await runtime.session.extensionRunner.emit({
-      type: "session_start",
       reason: "new",
+      type: "session_start",
     });
     runtime.faux.setResponses([
       fauxAssistantMessage("new work"),
@@ -321,8 +321,8 @@ describe("context handoff", () => {
     const closeSession: ExtensionFactory = (pi) => {
       pi.on("agent_settled", async () => {
         await runtime.session.extensionRunner.emit({
-          type: "session_shutdown",
           reason: "quit",
+          type: "session_shutdown",
         });
       });
     };

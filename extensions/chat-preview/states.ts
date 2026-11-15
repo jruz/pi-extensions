@@ -11,6 +11,6 @@ type StateStyle = Readonly<{
 }>;
 
 export const stateStyles: Readonly<Record<StatePreview, StateStyle>> = {
-  running: pipelineStyle("running"),
   pending: pipelineStyle("pending"),
+  running: pipelineStyle("running"),
 };

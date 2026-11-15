@@ -183,7 +183,7 @@ const writeUsageCache = async (
 };
 
 const releaseUsageLock = async (lockPath: string): Promise<void> => {
-  await rm(lockPath, { recursive: true, force: true });
+  await rm(lockPath, { force: true, recursive: true });
 };
 
 const acquireStaleUsageLock = async (lockPath: string): Promise<boolean> => {
@@ -203,7 +203,7 @@ const acquireStaleUsageLock = async (lockPath: string): Promise<boolean> => {
     await mkdir(lockPath);
     return true;
   } catch (mkdirError) {
-    await rm(staleLockPath, { recursive: true, force: true });
+    await rm(staleLockPath, { force: true, recursive: true });
     if (
       mkdirError instanceof Error &&
       "code" in mkdirError &&
@@ -253,7 +253,7 @@ const readPlanProgress = async (cwd: string): Promise<PlanState> => {
       return { status: "missing" };
     }
     const message = error instanceof Error ? error.message : "unknown error";
-    return { status: "error", message };
+    return { message, status: "error" };
   }
 };
 
@@ -282,8 +282,8 @@ const readStoredWindow = (value: unknown): RateWindow => {
   if (!isRecord(value)) throw new Error("usage cache window is invalid");
   return {
     remainingPercent: readOptionalNumber(value, "remainingPercent"),
-    windowMinutes: readOptionalNumber(value, "windowMinutes"),
     resetsAt: readOptionalNumber(value, "resetsAt"),
+    windowMinutes: readOptionalNumber(value, "windowMinutes"),
   };
 };
 
@@ -291,8 +291,8 @@ const readWindow = (value: unknown): RateWindow => {
   if (value === null || value === undefined)
     return {
       remainingPercent: undefined,
-      windowMinutes: undefined,
       resetsAt: undefined,
+      windowMinutes: undefined,
     };
   if (!isRecord(value)) throw new Error("usage window is not an object");
   const usedPercent = readNumber(value, "used_percent");
@@ -301,8 +301,8 @@ const readWindow = (value: unknown): RateWindow => {
   const windowMinutes = windowSeconds / 60;
   return {
     remainingPercent: 100 - usedPercent,
-    windowMinutes,
     resetsAt,
+    windowMinutes,
   };
 };
 
@@ -352,12 +352,12 @@ export const modelNameParts = (
 ): Readonly<{ prefix: string; suffix: string; color: ModelColor }> => {
   const match = modelPrefix.exec(model);
   if (match === null)
-    return { prefix: model, suffix: "", color: modelColor(model) };
+    return { color: modelColor(model), prefix: model, suffix: "" };
   const prefix = match[0];
   return {
+    color: modelColor(model),
     prefix,
     suffix: model.slice(prefix.length),
-    color: modelColor(model),
   };
 };
 
@@ -499,8 +499,8 @@ const renderFooter = (
     } catch (error) {
       reportError("context", "read", error);
       return {
-        status: "error",
         message: error instanceof Error ? error.message : "unknown error",
+        status: "error",
       };
     }
   })();
@@ -513,14 +513,14 @@ const renderFooter = (
     } catch (error) {
       reportError("model", "read", error);
       return {
-        status: "error",
         message: error instanceof Error ? error.message : "unknown error",
+        status: "error",
       };
     }
   })();
   const thinkingState: ModuleState<string> =
     ctx.thinkingLevel === undefined
-      ? { status: "error", message: "thinking level unavailable" }
+      ? { message: "thinking level unavailable", status: "error" }
       : { status: "success", value: ctx.thinkingLevel };
   if (thinkingState.status === "error")
     reportError("thinking", "read", thinkingState.message);
@@ -716,9 +716,9 @@ export default function (pi: ExtensionAPI): void {
       renderSession();
     };
     let state: FooterState = {
-      usage: { status: "loading" },
-      plan: { status: "loading" },
       activeTools: [],
+      plan: { status: "loading" },
+      usage: { status: "loading" },
     };
     let refreshTimer: ReturnType<typeof setTimeout> | undefined;
     let refreshInFlight = false;
@@ -783,7 +783,7 @@ export default function (pi: ExtensionAPI): void {
         if (isStopped()) return;
         state = {
           ...state,
-          usage: { status: "error", message: "usage cache read failed" },
+          usage: { message: "usage cache read failed", status: "error" },
         };
         render();
       }
@@ -838,7 +838,7 @@ export default function (pi: ExtensionAPI): void {
         if (isStopped()) return;
         state = {
           ...state,
-          usage: { status: "error", message: "usage refresh failed" },
+          usage: { message: "usage refresh failed", status: "error" },
         };
         render();
       } finally {

@@ -19,21 +19,21 @@ const actions = Type.Enum(["me", "peers", "history", "send", "reply"], {
   type: "string",
 });
 const agentReference = Type.String({
-  minLength: 1,
   description: "Full UUID; shortened IDs are not accepted.",
+  minLength: 1,
 });
-const message = Type.String({ minLength: 1, maxLength: 8000 });
+const message = Type.String({ maxLength: 8000, minLength: 1 });
 const priorities = Type.Enum(["normal", "urgent"], { type: "string" });
-const limit = Type.Integer({ minimum: 1, maximum: 100 });
+const limit = Type.Integer({ maximum: 100, minimum: 1 });
 const offset = Type.Integer({ minimum: 0 });
 const parameters = Type.Object({
   action: actions,
-  to: Type.Optional(agentReference),
-  message: Type.Optional(message),
-  replyTo: Type.Optional(agentReference),
-  priority: Type.Optional(priorities),
   limit: Type.Optional(limit),
+  message: Type.Optional(message),
   offset: Type.Optional(offset),
+  priority: Type.Optional(priorities),
+  replyTo: Type.Optional(agentReference),
+  to: Type.Optional(agentReference),
 });
 
 const result = (text: string) => {
@@ -41,7 +41,7 @@ const result = (text: string) => {
   const content = truncated.truncated
     ? `${truncated.content}\nOutput truncated; use a smaller history limit and page with offset.`
     : text;
-  return { content: [{ type: "text" as const, text: content }], details: {} };
+  return { content: [{ text: content, type: "text" as const }], details: {} };
 };
 
 const send = async (
@@ -72,12 +72,8 @@ export default function messenger(pi: ExtensionAPI): void {
   };
 
   pi.registerTool({
-    name: "messenger",
-    label: "Messenger",
-    exposure: "model-only",
     description:
       "Identify your conversation with me, discover online peers, send or reply using full IDs, and read current-runtime history. Normal messages batch while busy; urgent messages steer. Sending with unread incoming messages withholds the draft and returns the waiting batch: review it and retry with an updated response. Offline sends fail. Queues/history disappear on reload or shutdown. History defaults to 20; limit 1–100 and offset page older messages. Text is limited to 8000 characters. Only an explicit reply acknowledges.",
-    parameters,
     async execute(_id, params) {
       try {
         if (state === undefined)
@@ -87,10 +83,10 @@ export default function messenger(pi: ExtensionAPI): void {
           case "me": {
             const identity = JSON.stringify({
               agentId: agent.id,
-              sessionId: agent.id,
+              display: agent.projectPath,
               instanceId: agent.instanceId,
               projectPath: agent.projectPath,
-              display: agent.projectPath,
+              sessionId: agent.id,
             });
             return result(identity);
           }
@@ -116,6 +112,10 @@ export default function messenger(pi: ExtensionAPI): void {
         throw error;
       }
     },
+    exposure: "model-only",
+    label: "Messenger",
+    name: "messenger",
+    parameters,
   });
 
   pi.on("session_start", async (_event, ctx) => {
@@ -129,12 +129,12 @@ export default function messenger(pi: ExtensionAPI): void {
         status: ctx.isIdle() ? "idle" : "busy",
       };
       const runtime = createRuntime({
-        transport: createTransport(socketDirectory, reportError),
         agent,
-        isIdle: () => ctx.isIdle(),
         deliver: (content, mode) => {
           pi.sendUserMessage(content, { deliverAs: mode });
         },
+        isIdle: () => ctx.isIdle(),
+        transport: createTransport(socketDirectory, reportError),
       });
       await runtime.start();
       const timer = setInterval(() => {
@@ -165,7 +165,7 @@ export default function messenger(pi: ExtensionAPI): void {
         .filter((part) => part.type === "text")
         .map((part) => part.text);
     });
-    state.runtime.recordContext({ user, tool });
+    state.runtime.recordContext({ tool, user });
   });
 
   pi.on("session_shutdown", async () => {

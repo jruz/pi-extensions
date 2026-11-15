@@ -96,11 +96,11 @@ export const createHookStatus = <Timer>(
   };
 
   return {
-    startSession,
-    stopSession,
     currentGeneration: () => generation,
     isSessionActive,
     showPending,
     showResult,
+    startSession,
+    stopSession,
   };
 };

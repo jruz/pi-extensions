@@ -49,18 +49,18 @@ const start = async (
   const sessions: AgentSession[] = [];
   const factory = vi.fn<CreateAgentSessionRuntimeFactory>(async (options) => {
     const services = await createAgentSessionServices({
-      cwd: options.cwd,
       agentDir: directory,
-      settingsManager,
+      cwd: options.cwd,
       modelRuntime,
       resourceLoaderOptions: {
-        noExtensions: true,
-        noSkills: true,
-        noPromptTemplates: true,
-        noThemes: true,
-        noContextFiles: true,
         extensionFactories: extensions,
+        noContextFiles: true,
+        noExtensions: true,
+        noPromptTemplates: true,
+        noSkills: true,
+        noThemes: true,
       },
+      settingsManager,
     });
     const result = await createAgentSessionFromServices({
       services,
@@ -72,15 +72,15 @@ const start = async (
     });
     sessions.push(result.session);
     vi.spyOn(result.session, "getContextUsage").mockReturnValue({
-      tokens: 800,
       contextWindow: 1000,
       percent: 80,
+      tokens: 800,
     });
-    return { ...result, services, diagnostics: [] };
+    return { ...result, diagnostics: [], services };
   });
   const runtime = await createAgentSessionRuntime(factory, {
-    cwd: directory,
     agentDir: directory,
+    cwd: directory,
     sessionManager: SessionManager.inMemory(directory),
   });
   const errors = vi.fn<(error: ExtensionError) => void>();
@@ -88,41 +88,41 @@ const start = async (
   const notify = vi.fn<ExtensionUIContext["notify"]>();
   const rebind = async () => {
     await runtime.session.bindExtensions({
-      mode,
       commandContextActions: {
-        waitForIdle: () => runtime.session.waitForIdle(),
-        newSession: (options) => runtime.newSession(options),
         fork: (entryId, options) => runtime.fork(entryId, options),
         navigateTree: (entryId, options) =>
           runtime.session.navigateTree(entryId, options),
-        switchSession: (path, options) => runtime.switchSession(path, options),
+        newSession: (options) => runtime.newSession(options),
         reload: () => runtime.session.reload(),
+        switchSession: (path, options) => runtime.switchSession(path, options),
+        waitForIdle: () => runtime.session.waitForIdle(),
       },
-      uiContext: { ...runtime.session.extensionRunner.getUIContext(), notify },
-      shutdownHandler: shutdown,
+      mode,
       onError: errors,
+      shutdownHandler: shutdown,
+      uiContext: { ...runtime.session.extensionRunner.getUIContext(), notify },
     });
   };
   runtime.setRebindSession(rebind);
   await rebind();
   cleanups.push(async () => {
     await runtime.dispose();
-    await rm(directory, { recursive: true, force: true });
+    await rm(directory, { force: true, recursive: true });
   });
   return {
-    runtime,
-    sessions,
-    faux,
     directory,
     errors,
-    shutdown,
-    notify,
     factory,
+    faux,
+    notify,
+    runtime,
+    sessions,
+    shutdown,
   };
 };
 
 const writeFileMessage = (path: string, content: string) => {
-  const call = fauxToolCall("write", { path, content });
+  const call = fauxToolCall("write", { content, path });
   return fauxAssistantMessage(call);
 };
 
@@ -185,9 +185,9 @@ describe("automatic context handoff", () => {
           expectFreshContext(context.messages);
           await expectFile(planPath, "second saved plan");
           vi.spyOn(test.runtime.session, "getContextUsage").mockReturnValue({
-            tokens: 100,
             contextWindow: 1000,
             percent: 10,
+            tokens: 100,
           });
           return readPlan();
         },
@@ -267,8 +267,8 @@ describe("automatic context handoff", () => {
         writePlan("saved"),
         fauxAssistantMessage("saved"),
         fauxAssistantMessage("failed correction", {
-          stopReason,
           errorMessage: "scripted failure",
+          stopReason,
         }),
       ]);
       await original.prompt("work");
@@ -298,8 +298,8 @@ describe("automatic context handoff", () => {
       expect(test.sessions).toHaveLength(1);
       expect(test.errors).toHaveBeenCalledOnce();
       const reportedError: unknown = expect.objectContaining({
-        event: "command",
         error: "scripted creation failure",
+        event: "command",
       });
       expect(test.errors).toHaveBeenCalledWith(reportedError);
       expect(log).toHaveBeenCalledOnce();

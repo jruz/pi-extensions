@@ -12,7 +12,7 @@ export const logError = async (
   try {
     const message = error instanceof Error ? error.message : String(error);
     const timestamp = new Date().toISOString();
-    const entry = JSON.stringify({ timestamp, scope, ...context, message });
+    const entry = JSON.stringify({ scope, timestamp, ...context, message });
     await mkdir(PI_LOG_DIRECTORY, { recursive: true });
     await appendFile(LOG_PATH, `${entry}\n`);
   } catch (error) {

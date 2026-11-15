@@ -60,7 +60,7 @@ describe("Woodpecker request retries", () => {
 
   it("honors Retry-After on rate limits", async () => {
     fetchMock.mockResolvedValueOnce(
-      new Response(null, { status: 429, headers: { "Retry-After": "30" } }),
+      new Response(null, { headers: { "Retry-After": "30" }, status: 429 }),
     );
     const response = Response.json([]);
     fetchMock.mockResolvedValueOnce(response);

@@ -50,9 +50,9 @@ const setup = async () => {
   };
   cleanups.push(async () => {
     await transport.stop();
-    await rm(directory, { recursive: true, force: true });
+    await rm(directory, { force: true, recursive: true });
   });
-  return { directory, errors, transport, agent };
+  return { agent, directory, errors, transport };
 };
 
 afterEach(async () => {

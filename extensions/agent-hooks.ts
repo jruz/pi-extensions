@@ -25,9 +25,9 @@ const StopResponseSchema = z.union([
   z.object({ decision: z.literal("block"), reason: z.string() }).readonly(),
   z
     .object({
-      status: z.literal("warning"),
-      reason: z.string(),
       diagnostics: z.string(),
+      reason: z.string(),
+      status: z.literal("warning"),
     })
     .readonly(),
 ]);
@@ -86,7 +86,7 @@ const runHook = async (
     child = spawnWithDiagnostics(path, args, recordDiagnostic);
   } catch (error) {
     const message = error instanceof Error ? error.message : "unknown error";
-    return { status: "failure", failure: { kind: "start", message } };
+    return { failure: { kind: "start", message }, status: "failure" };
   }
 
   const chunks: Buffer[] = [];
@@ -105,36 +105,36 @@ const runHook = async (
     const timeout = setTimeout(() => {
       child.kill();
       finish({
+        failure: { diagnostics, kind: "timeout", message: "hook timed out" },
         status: "failure",
-        failure: { kind: "timeout", message: "hook timed out", diagnostics },
       });
     }, HOOK_TIMEOUT_MS);
     child.once("error", (error) => {
       const message = error instanceof Error ? error.message : "unknown error";
-      finish({ status: "failure", failure: { kind: "start", message } });
+      finish({ failure: { kind: "start", message }, status: "failure" });
     });
     child.once("close", (exitCode) => {
       if (exitCode === 0) {
         finish({
-          status: "success",
           output: Buffer.concat(chunks).toString("utf8").trim(),
+          status: "success",
         });
         return;
       }
       const failure =
         exitCode === null
           ? {
+              diagnostics,
               kind: "exit" as const,
               message: "hook closed without an exit status",
-              diagnostics,
             }
           : {
+              diagnostics,
+              exitCode,
               kind: "exit" as const,
               message: "hook exited unsuccessfully",
-              exitCode,
-              diagnostics,
             };
-      finish({ status: "failure", failure });
+      finish({ failure, status: "failure" });
     });
   });
   return result;

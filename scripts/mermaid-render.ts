@@ -32,7 +32,7 @@ const renderDiagram = async (
       "--puppeteerConfigFile",
       config,
     ],
-    { stdout: "inherit", stderr: "inherit" },
+    { stderr: "inherit", stdout: "inherit" },
   );
   const exitCode = await child.exited;
   if (exitCode !== 0) throw new Error(`mermaid render failed: ${input}`);
@@ -54,8 +54,8 @@ const renderDiagrams = async (): Promise<void> => {
   try {
     const config = join(directory, "puppeteer.json");
     const serialized = JSON.stringify({
-      executablePath: chromium,
       args: ["--no-sandbox"],
+      executablePath: chromium,
     });
     await writeFile(config, serialized);
     const initial = Promise.resolve();
@@ -68,7 +68,7 @@ const renderDiagrams = async (): Promise<void> => {
       await renderDiagram(command, config, input, output);
     }, initial);
   } finally {
-    await rm(directory, { recursive: true, force: true });
+    await rm(directory, { force: true, recursive: true });
   }
 };
 

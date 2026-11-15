@@ -8,9 +8,9 @@ import {
 import type { CardTheme } from "../woodpecker/presentation.ts";
 
 const theme: CardTheme = {
-  fg: (color, text) => `[${color}]${text}`,
   bg: (_color, text) => text,
   bold: (text) => text,
+  fg: (color, text) => `[${color}]${text}`,
 };
 
 describe("monitoring-error preview", () => {
@@ -30,7 +30,7 @@ describe("monitoring-error preview", () => {
     expect(text).toContain("Resume monitoring:");
     expect(text).not.toContain("(agent tool)");
     expect(text).toContain(
-      'woodpecker_watch({"repo":"owner/repo","branch":"main"})',
+      'woodpecker_watch({"branch":"main","repo":"owner/repo"})',
     );
     expect(text).toContain("Sample data");
   });

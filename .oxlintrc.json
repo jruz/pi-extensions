@@ -17,6 +17,7 @@
   "rules": {
     "local/no-comments": "error",
     "local/no-enums": "error",
+    "sort-keys": "error",
     "constructor-super": "error",
     "for-direction": "error",
     "getter-return": "error",

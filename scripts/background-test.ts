@@ -43,8 +43,8 @@ const tmux = async (
       "tmux",
       ["-f", "/dev/null", "-S", socket, ...args],
       {
-        timeout: 5000,
         maxBuffer: 64 * 1024,
+        timeout: 5000,
       },
     );
     return result.stdout.trim();
@@ -182,12 +182,12 @@ const createProbe = async (): Promise<Probe> => {
   const prefix = join(temporaryDirectory, "pi-background-host-test-'%雪-");
   const directory = await mkdtemp(prefix);
   return {
-    directory,
-    socket: join(directory, "owned.sock"),
     controlSocket: join(directory, "control.sock"),
+    directory,
     groups: new Set<number>(),
     processes: new Set<number>(),
     servers: new Map<string, number>(),
+    socket: join(directory, "owned.sock"),
   };
 };
 
@@ -459,9 +459,9 @@ const attachDetach = async (probe: Probe): Promise<void> => {
     "script",
     ["--quiet", "--return", "--command", shellCommand, "/dev/null"],
     {
-      timeout: 5000,
+      env: { ...process.env, SHELL: shell, TERM: "xterm-256color" },
       maxBuffer: 64 * 1024,
-      env: { ...process.env, TERM: "xterm-256color", SHELL: shell },
+      timeout: 5000,
     },
   );
   const completion = attachment.then(
@@ -569,8 +569,8 @@ const contextProbe = async (probe: Probe): Promise<void> => {
       output,
     ],
     {
-      timeout: 5000,
       env: { ...process.env, AGENT_CONFIG_PHASE1_TEST_MARKER: "later" },
+      timeout: 5000,
     },
   );
   const status = await paneStatus(probe, "context");

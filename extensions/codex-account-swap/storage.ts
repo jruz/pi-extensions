@@ -15,11 +15,11 @@ const AuthValueSchema = z.unknown();
 const AuthSchema = z.record(AuthKeySchema, AuthValueSchema);
 const CredentialSchema = z
   .object({
-    type: z.literal("oauth"),
     access: z.string().min(1),
-    refresh: z.string().min(1),
-    expires: z.number(),
     accountId: z.string().min(1),
+    expires: z.number(),
+    refresh: z.string().min(1),
+    type: z.literal("oauth"),
   })
   .loose()
   .readonly();
@@ -110,8 +110,8 @@ const updateAuth = (auth: Record<string, unknown>, selection: string) => {
     throw new Error(`account swap: unknown account ${selection}`);
   const [selected, credential] = target;
   return {
+    auth: { ...auth, [ACTIVE]: credential, "codex-account-swap": saved },
     selected,
-    auth: { ...auth, "codex-account-swap": saved, [ACTIVE]: credential },
   };
 };
 
@@ -136,7 +136,7 @@ export const swapCredentials = async (
     const auth = parseAuth(content);
     const updated = updateAuth(auth, selection);
     const serialized = JSON.stringify(updated.auth, null, 2);
-    await writeFile(temporaryPath, serialized, { mode: 0o600, flag: "wx" });
+    await writeFile(temporaryPath, serialized, { flag: "wx", mode: 0o600 });
     await rename(temporaryPath, authPath);
     return updated.selected;
   } finally {

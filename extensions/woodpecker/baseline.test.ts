@@ -18,11 +18,11 @@ describe("watch baseline", () => {
 
   it("includes observed pipelines when the branch has a baseline", () => {
     const pipeline = {
+      branch: "main",
+      commit: "abc123",
       id: 20,
       number: 20,
       status: "success",
-      branch: "main",
-      commit: "abc123",
     };
     const text = formatWatchBaseline(
       "jruz/claude-statusline",

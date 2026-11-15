@@ -6,10 +6,10 @@ describe("Woodpecker diagnostic CLI requests", () => {
   it("passes arguments, cancellation and a timeout without invoking a shell", async () => {
     const exec = vi.fn<ExtensionAPI["exec"]>();
     exec.mockResolvedValue({
-      stdout: "output",
-      stderr: "",
       code: 0,
       killed: false,
+      stderr: "",
+      stdout: "output",
     });
     const signal = new AbortController().signal;
     const run = createCliRunner(exec, signal);
@@ -24,7 +24,7 @@ describe("Woodpecker diagnostic CLI requests", () => {
 
   it("does not claim a cancelled request succeeded", async () => {
     const exec = vi.fn<ExtensionAPI["exec"]>();
-    exec.mockResolvedValue({ stdout: "", stderr: "", code: 0, killed: true });
+    exec.mockResolvedValue({ code: 0, killed: true, stderr: "", stdout: "" });
     const run = createCliRunner(exec, undefined);
     const request = run(["pipeline", "ps", "owner/repo", "10"]);
     await expect(request).rejects.toThrow("interrupted or timed out");
@@ -33,10 +33,10 @@ describe("Woodpecker diagnostic CLI requests", () => {
   it("reports nonzero exits with sanitized error evidence", async () => {
     const exec = vi.fn<ExtensionAPI["exec"]>();
     exec.mockResolvedValue({
-      stdout: "",
-      stderr: "error: request failed\nTOKEN=example-value",
       code: 1,
       killed: false,
+      stderr: "error: request failed\nTOKEN=example-value",
+      stdout: "",
     });
     const run = createCliRunner(exec, undefined);
     const request = run(["pipeline", "ps", "owner/repo", "10"]);

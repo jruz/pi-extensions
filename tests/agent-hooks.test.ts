@@ -53,15 +53,15 @@ const setup = async (script: string) => {
     retry: { enabled: false },
   });
   const resources = new DefaultResourceLoader({
-    cwd: directory,
     agentDir: directory,
-    settingsManager,
-    noExtensions: true,
-    noSkills: true,
-    noPromptTemplates: true,
-    noThemes: true,
-    noContextFiles: true,
+    cwd: directory,
     extensionFactories: [agentHooks],
+    noContextFiles: true,
+    noExtensions: true,
+    noPromptTemplates: true,
+    noSkills: true,
+    noThemes: true,
+    settingsManager,
   });
   await resources.reload();
   const modelRuntime = await ModelRuntime.create({
@@ -73,13 +73,13 @@ const setup = async (script: string) => {
   const faux = fauxProvider({ models: [{ id: "hook-test" }] });
   modelRuntime.registerNativeProvider(faux.provider);
   const { session } = await createAgentSession({
-    cwd: directory,
     agentDir: directory,
-    modelRuntime,
+    cwd: directory,
     model: faux.getModel(),
+    modelRuntime,
     resourceLoader: resources,
-    settingsManager,
     sessionManager: SessionManager.inMemory(directory),
+    settingsManager,
     tools: [],
   });
   const runner = session.extensionRunner;
@@ -87,17 +87,17 @@ const setup = async (script: string) => {
   const notify = vi.fn<ExtensionUIContext["notify"]>();
   const errors = vi.fn<(error: ExtensionError) => void>();
   await session.bindExtensions({
-    uiContext: { ...runner.getUIContext(), notify },
     onError: errors,
+    uiContext: { ...runner.getUIContext(), notify },
   });
   const sendUserMessage = vi.spyOn(session, "sendUserMessage");
   const sendMessage = vi.spyOn(session, "sendCustomMessage");
   cleanups.push(async () => {
-    await runner.emit({ type: "session_shutdown", reason: "quit" });
+    await runner.emit({ reason: "quit", type: "session_shutdown" });
     session.dispose();
-    await rm(directory, { recursive: true, force: true });
+    await rm(directory, { force: true, recursive: true });
   });
-  return { runner, notify, errors, sendUserMessage, sendMessage };
+  return { errors, notify, runner, sendMessage, sendUserMessage };
 };
 
 afterEach(async () => {
@@ -107,12 +107,12 @@ afterEach(async () => {
 });
 
 afterAll(async () => {
-  await rm(hooks, { recursive: true, force: true });
+  await rm(hooks, { force: true, recursive: true });
 });
 
 it("selects the Pi stop-hook protocol without requesting another model turn", async () => {
   const runtime = await setup('test "$#" -eq 1 && test "$1" = pi');
-  await runtime.runner.emit({ type: "agent_settled", aborted: false });
+  await runtime.runner.emit({ aborted: false, type: "agent_settled" });
   expect(runtime.errors).not.toHaveBeenCalled();
   expect(runtime.notify).not.toHaveBeenCalled();
   expect(runtime.sendUserMessage).not.toHaveBeenCalled();
@@ -131,8 +131,8 @@ it.each([
   "reports stop failure without model work: %s",
   async (script, message, level) => {
     const runtime = await setup(script);
-    await runtime.runner.emit({ type: "agent_settled", aborted: false });
-    await runtime.runner.emit({ type: "agent_settled", aborted: false });
+    await runtime.runner.emit({ aborted: false, type: "agent_settled" });
+    await runtime.runner.emit({ aborted: false, type: "agent_settled" });
     expect(runtime.errors).not.toHaveBeenCalled();
     const expectedMessage: unknown = expect.stringContaining(message);
     expect(runtime.notify).toHaveBeenCalledWith(expectedMessage, level);
@@ -146,7 +146,7 @@ it.each([
   ["exit 2", 2],
 ])("keeps stop crash diagnostics in the log: %s", async (script, exitCode) => {
   const runtime = await setup(script);
-  await runtime.runner.emit({ type: "agent_settled", aborted: false });
+  await runtime.runner.emit({ aborted: false, type: "agent_settled" });
   const logPath = join(hooks, "pi-agent-hooks.log");
   const log = await readFile(logPath, "utf8");
   expect(log).toContain(`exit_status=${exitCode}`);
@@ -159,13 +159,13 @@ it.each([
 
 it("logs and displays notification warnings without requesting model work", async () => {
   const warning = {
-    status: "warning",
-    reason: "ntfy rate limit reached (HTTP 429).",
     diagnostics: "provider=ntfy http_status=429",
+    reason: "ntfy rate limit reached (HTTP 429).",
+    status: "warning",
   };
   const output = JSON.stringify(warning);
   const runtime = await setup(`printf '%s' '${output}'`);
-  await runtime.runner.emit({ type: "agent_settled", aborted: false });
+  await runtime.runner.emit({ aborted: false, type: "agent_settled" });
   const logPath = join(hooks, "pi-agent-hooks.log");
   const notification = `Desktop notification couldn’t be sent.\nntfy rate limit reached (HTTP 429).\nLog: ${logPath}`;
   expect(runtime.notify).toHaveBeenCalledExactlyOnceWith(
@@ -183,7 +183,7 @@ it("rejects malformed warning responses as protocol errors", async () => {
   const runtime = await setup(
     `printf '%s' '{"status":"warning","reason":"missing diagnostics"}'`,
   );
-  await runtime.runner.emit({ type: "agent_settled", aborted: false });
+  await runtime.runner.emit({ aborted: false, type: "agent_settled" });
   const message: unknown = expect.stringContaining("protocol failure");
   expect(runtime.notify).toHaveBeenCalledWith(message, "error");
   expect(runtime.sendUserMessage).not.toHaveBeenCalled();
@@ -192,7 +192,7 @@ it("rejects malformed warning responses as protocol errors", async () => {
 
 it("preserves subprocess diagnostics in the hook log", async () => {
   const runtime = await setup("printf 'synthetic stop diagnostic' >&2; exit 1");
-  await runtime.runner.emit({ type: "agent_settled", aborted: false });
+  await runtime.runner.emit({ aborted: false, type: "agent_settled" });
   const logPath = join(hooks, "pi-agent-hooks.log");
   const log = await readFile(logPath, "utf8");
   expect(log).toContain("synthetic stop diagnostic");
@@ -204,8 +204,8 @@ it("reports a stop timeout without requesting another model turn", async () => {
   vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
   try {
     const settled = runtime.runner.emit({
-      type: "agent_settled",
       aborted: false,
+      type: "agent_settled",
     });
     await vi.advanceTimersByTimeAsync(5 * 60 * 1000);
     await settled;
@@ -221,7 +221,7 @@ it("reports a stop timeout without requesting another model turn", async () => {
 
 it("does not run a stop hook after cancellation", async () => {
   const runtime = await setup("exit 1");
-  await runtime.runner.emit({ type: "agent_settled", aborted: true });
+  await runtime.runner.emit({ aborted: true, type: "agent_settled" });
   expect(runtime.notify).not.toHaveBeenCalled();
   expect(runtime.errors).not.toHaveBeenCalled();
   expect(runtime.sendUserMessage).not.toHaveBeenCalled();

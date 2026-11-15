@@ -20,12 +20,12 @@ const agentSchema = z
 export const messageSchema = z
   .object({
     id: messageIdSchema,
-    senderId: conversationIdSchema,
-    senderProjectPath: z.string(),
-    recipientId: conversationIdSchema,
     message: z.string().min(1).max(8000),
     priority: z.enum(["normal", "urgent"]),
+    recipientId: conversationIdSchema,
     replyTo: messageIdSchema.optional(),
+    senderId: conversationIdSchema,
+    senderProjectPath: z.string(),
     sentAt: z.number(),
   })
   .readonly();
@@ -42,9 +42,9 @@ export const requestSchema = z.discriminatedUnion("action", [
 ]);
 
 export const responseSchema = z.discriminatedUnion("type", [
-  z.object({ type: z.literal("identity"), agent: agentSchema }).readonly(),
+  z.object({ agent: agentSchema, type: z.literal("identity") }).readonly(),
   z.object({ type: z.literal("accepted") }).readonly(),
-  z.object({ type: z.literal("error"), message: z.string() }).readonly(),
+  z.object({ message: z.string(), type: z.literal("error") }).readonly(),
 ]);
 
 export type AgentRecord = z.infer<typeof agentSchema>;

@@ -12,22 +12,22 @@ import { pipelineQuery, subscriptionKey, watchTargetSchema } from "./target.ts";
 
 const commit = "1895fede547fb80dc198689ad33622c48e453a49";
 const push = {
-  id: 69,
-  number: 20,
-  status: "success",
   branch: "main",
   commit,
   event: "push",
+  id: 69,
+  number: 20,
   ref: "refs/heads/main",
+  status: "success",
 };
 const tag = {
   ...push,
-  id: 70,
-  number: 21,
-  status: "running",
   branch: "",
   event: "tag",
+  id: 70,
+  number: 21,
   ref: "refs/tags/v0.4.3",
+  status: "running",
 };
 const target = watchTargetSchema.parse({ commit });
 
@@ -70,7 +70,7 @@ describe("commit watching", () => {
   it("requests repository-wide pipelines then validates and filters exact commits", async () => {
     const request =
       vi.fn<(path: string, signal: AbortSignal) => Promise<unknown>>();
-    const unrelated = { ...push, id: 71, commit: "a".repeat(40) };
+    const unrelated = { ...push, commit: "a".repeat(40), id: 71 };
     request.mockResolvedValueOnce([tag, unrelated, push]);
     const read = createPipelineReader(request);
     const signal = new AbortController().signal;
@@ -100,7 +100,7 @@ describe("commit watching", () => {
   });
 
   it("captures push and tag pipelines but excludes unrelated commits", () => {
-    const unrelated = { ...push, id: 71, commit: "a".repeat(40) };
+    const unrelated = { ...push, commit: "a".repeat(40), id: 71 };
     const commitPipelines = matchingPipelines([tag, unrelated, push], target);
     const branchPipelines = matchingPipelines([tag, push], {
       kind: "branch",

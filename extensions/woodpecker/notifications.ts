@@ -12,22 +12,22 @@ import { requestError } from "./request.ts";
 const statusUpdateSchema = z
   .object({
     kind: z.literal("status"),
-    repo: z.string(),
     pipeline: pipelineSchema,
+    repo: z.string(),
   })
   .readonly();
 const failureUpdateSchema = z
   .object({
-    kind: z.literal("failure"),
     diagnostics: diagnosticsSchema,
+    kind: z.literal("failure"),
   })
   .readonly();
 const unavailableUpdateSchema = z
   .object({
     kind: z.literal("diagnostics-unavailable"),
-    repo: z.string(),
     pipeline: pipelineSchema,
     reason: z.string(),
+    repo: z.string(),
   })
   .readonly();
 
@@ -58,17 +58,17 @@ const createUpdate = async (
   repo: string,
   pipeline: Pipeline,
 ): Promise<PipelineUpdate> => {
-  if (pipeline.status !== "failure") return { kind: "status", repo, pipeline };
+  if (pipeline.status !== "failure") return { kind: "status", pipeline, repo };
   try {
     const diagnostics = await fetchDiagnostics(run, repo, pipeline.number);
     const fetched = diagnostics.pipeline;
     if (fetched.id !== pipeline.id || fetched.commit !== pipeline.commit)
       throw new Error("woodpecker: mismatched pipeline diagnostics");
-    return { kind: "failure", diagnostics };
+    return { diagnostics, kind: "failure" };
   } catch (error) {
     const reason = requestError(error);
     report(reason);
-    return { kind: "diagnostics-unavailable", repo, pipeline, reason };
+    return { kind: "diagnostics-unavailable", pipeline, reason, repo };
   }
 };
 

@@ -70,16 +70,16 @@ const setup = async () => {
   });
   const events = createEventBus();
   const resources = new DefaultResourceLoader({
-    eventBus: events,
-    cwd: directory,
     agentDir: directory,
-    settingsManager,
-    noExtensions: true,
-    noSkills: true,
-    noPromptTemplates: true,
-    noThemes: true,
-    noContextFiles: true,
+    cwd: directory,
+    eventBus: events,
     extensionFactories: [statusLine],
+    noContextFiles: true,
+    noExtensions: true,
+    noPromptTemplates: true,
+    noSkills: true,
+    noThemes: true,
+    settingsManager,
   });
   await resources.reload();
   const modelRuntime = await ModelRuntime.create({
@@ -93,13 +93,13 @@ const setup = async () => {
   });
   modelRuntime.registerNativeProvider(faux.provider);
   const { session } = await createAgentSession({
-    cwd: directory,
     agentDir: directory,
-    modelRuntime,
+    cwd: directory,
     model: faux.getModel(),
+    modelRuntime,
     resourceLoader: resources,
-    settingsManager,
     sessionManager: SessionManager.inMemory(directory),
+    settingsManager,
     tools: [],
   });
   const runner = session.extensionRunner;
@@ -119,9 +119,9 @@ const setup = async () => {
   const setFooter = vi.fn<ExtensionUIContext["setFooter"]>((factory) => {
     if (factory === undefined) return;
     const footer = factory(tui, ui.theme, {
-      getGitBranch: () => null,
-      getExtensionStatuses: () => statuses,
       getAvailableProviderCount: () => 1,
+      getExtensionStatuses: () => statuses,
+      getGitBranch: () => null,
       onBranchChange: () => unsubscribe,
     });
     footers.push(footer);
@@ -130,16 +130,16 @@ const setup = async () => {
   const start = async (mode: ExtensionMode) => {
     await session.bindExtensions({
       mode,
-      uiContext: { ...ui, setFooter },
       onError: errors,
+      uiContext: { ...ui, setFooter },
     });
   };
-  const stop = () => runner.emit({ type: "session_shutdown", reason: "quit" });
+  const stop = () => runner.emit({ reason: "quit", type: "session_shutdown" });
   cleanups.push(async () => {
     await stop();
     footers.forEach((footer) => footer.dispose?.());
     session.dispose();
-    await rm(directory, { recursive: true, force: true });
+    await rm(directory, { force: true, recursive: true });
   });
   fetchMock.mockReset();
   fetchMock.mockImplementation(() => {
@@ -149,18 +149,18 @@ const setup = async () => {
   vi.stubGlobal("fetch", fetchMock);
   vi.useFakeTimers();
   return {
-    session,
-    theme: ui.theme,
-    events,
-    statuses,
-    runner,
     auth,
+    errors,
+    events,
     footers,
     requestRender,
+    runner,
+    session,
     setFooter,
     start,
+    statuses,
     stop,
-    errors,
+    theme: ui.theme,
     unsubscribe,
   };
 };
@@ -172,11 +172,11 @@ afterEach(async () => {
   vi.useRealTimers();
   vi.unstubAllGlobals();
   vi.restoreAllMocks();
-  await rm(home, { recursive: true, force: true });
+  await rm(home, { force: true, recursive: true });
 });
 
 afterAll(async () => {
-  await rm(home, { recursive: true, force: true });
+  await rm(home, { force: true, recursive: true });
 });
 
 const renderFooter = (footers: Footer[]): string => {
@@ -558,44 +558,44 @@ describe("status line lifecycle", () => {
     const runtime = await setup();
     await runtime.start("tui");
     await runtime.runner.emit({
-      type: "tool_execution_start",
+      args: {},
       toolCallId: "parent",
       toolName: "codemode",
-      args: {},
+      type: "tool_execution_start",
     });
     await runtime.runner.emit({
-      type: "tool_execution_start",
-      toolCallId: "parent/1",
-      parentToolCallId: "parent",
-      toolName: "read",
       args: {},
+      parentToolCallId: "parent",
+      toolCallId: "parent/1",
+      toolName: "read",
+      type: "tool_execution_start",
     });
     const nested = renderFooter(runtime.footers);
     expect(nested).toMatch(/Process:.*2/);
     await runtime.runner.emit({
-      type: "tool_execution_end",
-      toolCallId: "parent/1",
-      parentToolCallId: "parent",
-      toolName: "read",
-      result: {},
       isError: false,
+      parentToolCallId: "parent",
+      result: {},
+      toolCallId: "parent/1",
+      toolName: "read",
+      type: "tool_execution_end",
     });
     await runtime.runner.emit({
-      type: "tool_execution_end",
+      isError: true,
+      result: {},
       toolCallId: "parent",
       toolName: "codemode",
-      result: {},
-      isError: true,
+      type: "tool_execution_end",
     });
     const finished = renderFooter(runtime.footers);
     expect(finished).toMatch(/Process:.*0/);
     await runtime.runner.emit({
-      type: "tool_execution_start",
+      args: {},
       toolCallId: "cancelled",
       toolName: "codemode",
-      args: {},
+      type: "tool_execution_start",
     });
-    await runtime.runner.emit({ type: "agent_settled", aborted: true });
+    await runtime.runner.emit({ aborted: true, type: "agent_settled" });
     const cancelled = renderFooter(runtime.footers);
     expect(cancelled).toMatch(/Process:.*0/);
     await runtime.stop();

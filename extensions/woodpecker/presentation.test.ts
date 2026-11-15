@@ -9,39 +9,39 @@ import {
 import type { PipelineUpdate } from "./notifications.ts";
 
 const theme: CardTheme = {
-  fg: (color, text) => `[${color}]${text}`,
   bg: (_color, text) => text,
   bold: (text) => text,
+  fg: (color, text) => `[${color}]${text}`,
 };
 const pipeline = {
+  branch: "main",
+  commit: "abc1234567",
   id: 10,
   number: 10,
   status: "failure",
-  branch: "main",
-  commit: "abc1234567",
 };
 const failure: PipelineUpdate = {
-  kind: "failure",
   diagnostics: {
-    repo: "owner/repo",
     pipeline,
+    repo: "owner/repo",
     steps: [
       {
-        workflow: "build-main",
-        name: "BUILD",
-        number: 6,
-        exitCode: 1,
         error: "",
-        started: 100,
-        stopped: 113,
         evidence: [
           { line: 20, text: "context" },
           { line: 21, text: "error: denied" },
         ],
+        exitCode: 1,
         logsCommand: "woodpecker-cli pipeline log show 'owner/repo' 10 6",
+        name: "BUILD",
+        number: 6,
+        started: 100,
+        stopped: 113,
+        workflow: "build-main",
       },
     ],
   },
+  kind: "failure",
 };
 
 describe("reviewed Woodpecker cards", () => {
@@ -75,9 +75,9 @@ describe("reviewed Woodpecker cards", () => {
   it("distinguishes unavailable diagnostics from CI success", () => {
     const update: PipelineUpdate = {
       kind: "diagnostics-unavailable",
-      repo: "owner/repo",
       pipeline,
       reason: "request timeout",
+      repo: "owner/repo",
     };
     const lines = updateLines(update, theme);
     const text = lines.join("\n");
@@ -89,13 +89,13 @@ describe("reviewed Woodpecker cards", () => {
   it("identifies a branchless tag pipeline in its card", () => {
     const update: PipelineUpdate = {
       kind: "status",
-      repo: "owner/repo",
       pipeline: {
         ...pipeline,
         branch: "",
         event: "tag",
         ref: "refs/tags/v0.4.3",
       },
+      repo: "owner/repo",
     };
     const lines = updateLines(update, theme);
     const text = lines.join("\n");
@@ -105,12 +105,12 @@ describe("reviewed Woodpecker cards", () => {
   it("removes terminal controls from API metadata", () => {
     const update: PipelineUpdate = {
       kind: "status",
-      repo: "owner/repo",
       pipeline: {
         ...pipeline,
-        status: "running",
         branch: "main\u001b[31m\ninjected",
+        status: "running",
       },
+      repo: "owner/repo",
     };
     const lines = updateLines(update, theme);
     const text = lines.join("\n");

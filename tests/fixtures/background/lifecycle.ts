@@ -24,7 +24,7 @@ export default (pi: ExtensionAPI): void => {
     try {
       await appendFile(
         outputPath,
-        `${JSON.stringify({ type, reason, runtimeId: runtimeId() })}\n`,
+        `${JSON.stringify({ reason, runtimeId: runtimeId(), type })}\n`,
         { mode: 0o600 },
       );
     } catch (error) {

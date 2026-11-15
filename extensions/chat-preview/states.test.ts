@@ -4,15 +4,15 @@ import { statePreviewSchema, stateStyles } from "./states.ts";
 describe("neutral CI state previews", () => {
   it("uses an accent dot for running", () => {
     expect(stateStyles.running).toEqual({
-      title: "● Woodpecker CI · Running",
       color: "accent",
+      title: "● Woodpecker CI · Running",
     });
   });
 
   it("uses a muted empty circle for pending", () => {
     expect(stateStyles.pending).toEqual({
-      title: "○ Woodpecker CI · Pending",
       color: "muted",
+      title: "○ Woodpecker CI · Pending",
     });
   });
 

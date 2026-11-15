@@ -8,22 +8,22 @@ import {
 } from "./diagnostics.ts";
 
 const pipeline = {
-  id: 10,
-  number: 10,
-  status: "failure",
   branch: "main",
   commit: "abc1234567",
   event: "push",
+  id: 10,
+  number: 10,
   ref: "refs/heads/main",
+  status: "failure",
 };
 const step = {
-  workflow: "build-main",
+  error: "",
+  exitCode: 1,
   name: "BUILD",
   number: 6,
-  exitCode: 1,
-  error: "",
   started: 100,
   stopped: 113,
+  workflow: "build-main",
 };
 
 const pipelineOutput = (value: typeof pipeline) => {
@@ -135,8 +135,8 @@ describe("live preview diagnostics", () => {
     const pipelineJson = pipelineOutput(tag);
     const stepJson = JSON.stringify({
       ...step,
-      workflow: "release",
       name: "BUILD_LINUX",
+      workflow: "release",
     });
     run.mockResolvedValueOnce(pipelineJson);
     run.mockResolvedValueOnce(stepJson);

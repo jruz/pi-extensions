@@ -9,13 +9,13 @@ import {
 
 const stepSchema = z
   .object({
-    workflow: z.string(),
+    error: z.string(),
+    exitCode: z.number().int(),
     name: z.string(),
     number: z.number().int(),
-    exitCode: z.number().int(),
-    error: z.string(),
     started: z.number(),
     stopped: z.number(),
+    workflow: z.string(),
   })
   .readonly();
 
@@ -33,8 +33,8 @@ const diagnosticStepSchema = stepSchema
 
 export const diagnosticsSchema = z
   .object({
-    repo: z.string(),
     pipeline: pipelineSchema,
+    repo: z.string(),
     steps: z.array(diagnosticStepSchema).readonly(),
   })
   .readonly();
@@ -58,7 +58,7 @@ const cleanLine = (line: string): string => {
 export const extractEvidence = (logs: string): readonly Evidence[] => {
   const lines = logs.split("\n").map(cleanLine);
   const hits = lines
-    .map((text, index) => ({ text, index }))
+    .map((text, index) => ({ index, text }))
     .filter(({ text }) => errorLine.test(text))
     .slice(0, 3);
   return lines
@@ -79,13 +79,13 @@ const parsePipeline = (text: string) => {
     .split("\n")
     .map(parseJson);
   const pipeline = apiPipelineSchema.parse({
-    id,
-    number,
-    status,
     branch,
     commit,
     event,
+    id,
+    number,
     ref,
+    status,
   });
   if (pipeline.status !== "failure")
     throw new Error("woodpecker: selected pipeline is not failed");
@@ -125,11 +125,11 @@ const fetchStep = async (
   const quotedRepo = `'${repo.replaceAll("'", "'\\''")}'`;
   return {
     ...step,
-    workflow: cleanLine(step.workflow),
-    name: cleanLine(step.name),
     error: cleanLine(step.error),
     evidence,
     logsCommand: `woodpecker-cli pipeline log show ${quotedRepo} ${pipeline} ${step.number}`,
+    name: cleanLine(step.name),
+    workflow: cleanLine(step.workflow),
   };
 };
 
@@ -160,7 +160,7 @@ export const fetchDiagnostics = async (
     fetchStep(run, repo, number, step),
   );
   const steps = await Promise.all(requests);
-  return { repo, pipeline, steps };
+  return { pipeline, repo, steps };
 };
 
 export const formatDiagnostics = ({

@@ -21,25 +21,25 @@ const createPeer = async (directory: string, id: string, errors: unknown[]) => {
     projectPath: "/same/project",
     status: "idle",
   };
-  const activity = { idle: true, failDelivery: false };
+  const activity = { failDelivery: false, idle: true };
   const delivered: Readonly<{ text: string; mode: "steer" | "followUp" }>[] =
     [];
   const transport = createTransport(directory, (error) => errors.push(error));
   const runtime = createRuntime({
     agent,
-    transport,
-    isIdle: () => activity.idle,
     deliver: (text, mode) => {
       if (activity.failDelivery) throw new Error("test: injection failed");
-      delivered.push({ text, mode });
+      delivered.push({ mode, text });
     },
+    isIdle: () => activity.idle,
+    transport,
   });
   await runtime.start();
   const readUser = () => {
     const user = delivered.map((entry) => entry.text);
-    runtime.recordContext({ user, tool: [] });
+    runtime.recordContext({ tool: [], user });
   };
-  return { agent, runtime, activity, delivered, readUser, transport };
+  return { activity, agent, delivered, readUser, runtime, transport };
 };
 
 type Peer = Awaited<ReturnType<typeof createPeer>>;
@@ -53,7 +53,7 @@ const setup = async () => {
   cleanups.push(async () => {
     const stops = runtimes.map((runtime) => runtime.stop());
     await Promise.all(stops);
-    await rm(directory, { recursive: true, force: true });
+    await rm(directory, { force: true, recursive: true });
   });
   const start = async (id: string) => {
     const peer = await createPeer(directory, id, errors);
@@ -64,7 +64,7 @@ const setup = async () => {
   const rightId = randomUUID();
   const left = await start(leftId);
   const right = await start(rightId);
-  return { directory, start, left, right, errors };
+  return { directory, errors, left, right, start };
 };
 
 type Fixture = Awaited<ReturnType<typeof setup>>;
@@ -81,7 +81,7 @@ const reply = (test: Fixture, id: string, text: string) =>
   test.right.runtime.send(test.left.agent.id, text, "normal", id);
 
 const readCheckpoint = (peer: Peer, text: string): void => {
-  peer.runtime.recordContext({ user: [], tool: [text] });
+  peer.runtime.recordContext({ tool: [text], user: [] });
 };
 
 const originalMessage = async (test: Fixture): Promise<string> => {
@@ -119,8 +119,8 @@ describe("ephemeral messenger", () => {
     const test = await setup();
     const result = await sendMessage(test.left, test.right, "hello");
     expect(result).toEqual({
-      type: "sent",
       text: `to: ${test.right.agent.id}\nproject: /same/project\npriority: normal\nmessage:\nhello`,
+      type: "sent",
     });
     await test.right.runtime.poll();
     await test.right.runtime.poll();
@@ -311,7 +311,7 @@ describe("ephemeral messenger", () => {
     const entry = test.right.delivered[0];
     if (entry === undefined) throw new Error("test: no urgent delivery");
     const marker = incomingId(entry.text);
-    test.right.runtime.recordContext({ user: [marker], tool: [] });
+    test.right.runtime.recordContext({ tool: [], user: [marker] });
     const blocked = await sendMessage(test.right, test.left, "answer");
     expect(blocked.type).toBe("withheld");
     test.right.readUser();
@@ -326,7 +326,7 @@ describe("ephemeral messenger", () => {
     const history = test.right.runtime.history(20, 0);
     const match = / id=([^ ]+)/.exec(history);
     const id = messageIdSchema.parse(match?.[1]);
-    test.right.runtime.recordContext({ user: [`message-id: ${id}`], tool: [] });
+    test.right.runtime.recordContext({ tool: [], user: [`message-id: ${id}`] });
     const draft = await sendMessage(test.right, test.left, "answer");
     expect(draft.type).toBe("withheld");
   });
@@ -377,11 +377,11 @@ describe("ephemeral messenger", () => {
     await test.start(test.right.agent.id);
     const message: MessageRecord = {
       id: randomUUID(),
-      senderId: test.left.agent.id,
-      senderProjectPath: "/same/project",
-      recipientId: test.right.agent.id,
       message: "stale",
       priority: "normal",
+      recipientId: test.right.agent.id,
+      senderId: test.left.agent.id,
+      senderProjectPath: "/same/project",
       sentAt: Date.now(),
     };
     const stale = test.left.transport.send(previous, message);

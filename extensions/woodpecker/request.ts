@@ -52,28 +52,28 @@ export const requestJson = async (
       try {
         const response = await fetch(url, {
           headers,
-          signal: AbortSignal.any([signal, timeout]),
           redirect: "error",
+          signal: AbortSignal.any([signal, timeout]),
         });
         if (!response.ok) {
           const retryAfter = response.headers.get("Retry-After");
           await response.body?.cancel();
           return {
-            type: "failure" as const,
             message: `woodpecker: HTTP ${response.status}`,
-            retryable: response.status === 429 || response.status >= 500,
             retryAfter,
+            retryable: response.status === 429 || response.status >= 500,
+            type: "failure" as const,
           };
         }
         const data: unknown = await response.json();
-        return { type: "success" as const, data };
+        return { data, type: "success" as const };
       } catch (error) {
         signal.throwIfAborted();
         return {
-          type: "failure" as const,
           message: failureMessage(timeout.aborted, error),
-          retryable: timeout.aborted || error instanceof TypeError,
           retryAfter: null,
+          retryable: timeout.aborted || error instanceof TypeError,
+          type: "failure" as const,
         };
       }
     })();

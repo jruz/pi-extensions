@@ -7,11 +7,11 @@ import {
 } from "../extensions/woodpecker/client.ts";
 
 const running = {
+  branch: "feature",
+  commit: "abc123",
   id: 1,
   number: 42,
   status: "running",
-  branch: "feature",
-  commit: "abc123",
 };
 
 describe("Woodpecker status changes", () => {

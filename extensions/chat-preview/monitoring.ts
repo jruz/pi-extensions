@@ -5,25 +5,25 @@ import type { CardTheme } from "../woodpecker/presentation.ts";
 
 export const monitoringPreviewSchema = z
   .object({
-    repo: z.string(),
     branch: z.string(),
-    reason: z.string(),
     lastPipeline: pipelineSchema.nullable(),
+    reason: z.string(),
+    repo: z.string(),
   })
   .readonly();
 export type MonitoringPreview = z.infer<typeof monitoringPreviewSchema>;
 
 export const monitoringSample: MonitoringPreview = {
-  repo: "owner/repo",
   branch: "main",
-  reason: "Request timed out",
   lastPipeline: {
+    branch: "main",
+    commit: "a1b2c3d",
     id: 42,
     number: 42,
     status: "running",
-    branch: "main",
-    commit: "a1b2c3d",
   },
+  reason: "Request timed out",
+  repo: "owner/repo",
 };
 
 export const monitoringLines = (
@@ -35,7 +35,7 @@ export const monitoringLines = (
   const quotedRepo = `'${repo.replaceAll("'", "'\\''")}'`;
   const quotedBranch = `'${branch.replaceAll("'", "'\\''")}'`;
   const checkCommand = `woodpecker-cli pipeline ls ${quotedRepo} --branch ${quotedBranch} --limit 1`;
-  const watchArgs = JSON.stringify({ repo, branch });
+  const watchArgs = JSON.stringify({ branch, repo });
   const resumeCommand = `woodpecker_watch(${watchArgs})`;
   const lastKnown =
     lastPipeline === null

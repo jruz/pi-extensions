@@ -161,48 +161,13 @@ export const createTransport = (
     return agents.filter((agent) => agent !== undefined);
   };
   return {
-    start: async (
-      identity: () => AgentRecord,
-      receive: (instanceId: string, message: MessageRecord) => void,
-    ): Promise<void> => {
-      await mkdir(directory, { recursive: true, mode: 0o700 });
-      await peers();
-      const agent = identity();
-      const previous = await liveAgent(directory, agent.id);
-      if (previous !== undefined)
-        throw new Error(`messenger: conversation already online: ${agent.id}`);
-      const server = createServer((socket) => {
-        const respond = async (): Promise<void> => {
-          try {
-            const body = await readFrame(socket);
-            const payload = requestSchema.parse(body);
-            const result: TransportResponse =
-              payload.action === "me"
-                ? { type: "identity", agent: identity() }
-                : accept(receive, payload.instanceId, payload.message);
-            socket.end(`${JSON.stringify(result)}\n`);
-          } catch (error) {
-            reportError(error);
-            const message =
-              error instanceof Error ? error.message : String(error);
-            socket.end(`${JSON.stringify({ type: "error", message })}\n`);
-          }
-        };
-        respond().catch(reportError);
-      });
-      const path = socketPath(directory, agent.id);
-      await listen(server, path);
-      server.on("error", reportError);
-      const metadata = await stat(path);
-      servers.set(server, { path, inode: metadata.ino });
-    },
-    peers,
     identity: async (id: ConversationId): Promise<AgentRecord> => {
       const agent = await liveAgent(directory, id);
       if (agent === undefined)
         throw new Error(`messenger: recipient offline: ${id}`);
       return agent;
     },
+    peers,
     send: async (
       recipient: AgentRecord,
       message: MessageRecord,
@@ -215,6 +180,41 @@ export const createTransport = (
       });
       if (response.type !== "accepted")
         throw new Error("messenger: recipient did not accept message");
+    },
+    start: async (
+      identity: () => AgentRecord,
+      receive: (instanceId: string, message: MessageRecord) => void,
+    ): Promise<void> => {
+      await mkdir(directory, { mode: 0o700, recursive: true });
+      await peers();
+      const agent = identity();
+      const previous = await liveAgent(directory, agent.id);
+      if (previous !== undefined)
+        throw new Error(`messenger: conversation already online: ${agent.id}`);
+      const server = createServer((socket) => {
+        const respond = async (): Promise<void> => {
+          try {
+            const body = await readFrame(socket);
+            const payload = requestSchema.parse(body);
+            const result: TransportResponse =
+              payload.action === "me"
+                ? { agent: identity(), type: "identity" }
+                : accept(receive, payload.instanceId, payload.message);
+            socket.end(`${JSON.stringify(result)}\n`);
+          } catch (error) {
+            reportError(error);
+            const message =
+              error instanceof Error ? error.message : String(error);
+            socket.end(`${JSON.stringify({ message, type: "error" })}\n`);
+          }
+        };
+        respond().catch(reportError);
+      });
+      const path = socketPath(directory, agent.id);
+      await listen(server, path);
+      server.on("error", reportError);
+      const metadata = await stat(path);
+      servers.set(server, { inode: metadata.ino, path });
     },
     stop: async (): Promise<void> => {
       const entries = servers.entries();

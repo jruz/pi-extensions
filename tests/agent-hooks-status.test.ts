@@ -18,10 +18,10 @@ const createContext = (state: ContextState): HookStatusContext => ({
   get ui() {
     if (state.stale) throw new Error("stale context");
     return {
+      setStatus: (_key: string, value: string) => state.statuses.push(value),
       theme: {
         fg: (_color: "error" | "success" | "warning", text: string) => text,
       },
-      setStatus: (_key: string, value: string) => state.statuses.push(value),
     };
   },
 });

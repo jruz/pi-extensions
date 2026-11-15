@@ -5,13 +5,13 @@ import { pipelineQuery, type WatchTarget } from "./target.ts";
 const repoSchema = z.object({ id: z.number() }).readonly();
 export const pipelineSchema = z
   .object({
-    id: z.number(),
-    number: z.number(),
-    status: z.string(),
     branch: z.string(),
     commit: z.string(),
     event: z.string().optional(),
+    id: z.number(),
+    number: z.number(),
     ref: z.string().optional(),
+    status: z.string(),
   })
   .readonly();
 export type Pipeline = z.infer<typeof pipelineSchema>;
@@ -66,6 +66,7 @@ export const createClient = (report: (message: string) => void) => {
   };
 
   return {
+    pipelines: createPipelineReader(request),
     repo: async (name: string, signal: AbortSignal) => {
       const data = await request(
         `/api/repos/lookup/${name.split("/").map(encodeURIComponent).join("/")}`,
@@ -73,7 +74,6 @@ export const createClient = (report: (message: string) => void) => {
       );
       return repoSchema.parse(data).id;
     },
-    pipelines: createPipelineReader(request),
   };
 };
 

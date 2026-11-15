@@ -11,15 +11,15 @@ export type CardTheme = Pick<Theme, "fg" | "bg" | "bold">;
 export const pipelineStyle = (status: string): PipelineStyle => {
   switch (status) {
     case "success":
-      return { title: "✓ Woodpecker CI · Passed", color: "success" };
+      return { color: "success", title: "✓ Woodpecker CI · Passed" };
     case "failure":
-      return { title: "✗ Woodpecker CI · Failed", color: "error" };
+      return { color: "error", title: "✗ Woodpecker CI · Failed" };
     case "running":
-      return { title: "● Woodpecker CI · Running", color: "accent" };
+      return { color: "accent", title: "● Woodpecker CI · Running" };
     case "pending":
-      return { title: "○ Woodpecker CI · Pending", color: "muted" };
+      return { color: "muted", title: "○ Woodpecker CI · Pending" };
   }
-  return { title: `Woodpecker CI · ${status}`, color: "muted" };
+  return { color: "muted", title: `Woodpecker CI · ${status}` };
 };
 
 const displayValue = (value: string) =>

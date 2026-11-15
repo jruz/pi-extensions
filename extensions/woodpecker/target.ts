@@ -5,7 +5,7 @@ const commitSchema = z.string().regex(/^[a-f0-9]{40}$/);
 export const watchTargetSchema = z
   .union([
     z.object({ branch: z.string().min(1), commit: z.never().optional() }),
-    z.object({ commit: commitSchema, branch: z.never().optional() }),
+    z.object({ branch: z.never().optional(), commit: commitSchema }),
   ])
   .transform((input) => {
     if (input.branch !== undefined)

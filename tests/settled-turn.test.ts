@@ -4,46 +4,46 @@ import { describe, expect, test } from "vitest";
 import { lastTurnFailed } from "../extensions/shared/settled-turn.ts";
 
 const usage: AssistantMessage["usage"] = {
-  input: 0,
-  output: 0,
   cacheRead: 0,
   cacheWrite: 0,
+  cost: { cacheRead: 0, cacheWrite: 0, input: 0, output: 0, total: 0 },
+  input: 0,
+  output: 0,
   totalTokens: 0,
-  cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 },
 };
 
 const assistantEntry = (id: string, stopReason: StopReason): SessionEntry => ({
-  type: "message",
   id,
-  parentId: null,
-  timestamp: "2026-10-04T09:37:27.013Z",
   message: {
-    role: "assistant",
-    content: [],
     api: "openai-codex-responses",
-    provider: "openai-codex",
+    content: [],
     model: "gpt-6-luna",
-    usage,
+    provider: "openai-codex",
+    role: "assistant",
     stopReason,
     timestamp: 0,
+    usage,
   },
+  parentId: null,
+  timestamp: "2026-10-04T09:37:27.013Z",
+  type: "message",
 });
 
 const userEntry = (id: string): SessionEntry => ({
-  type: "message",
   id,
+  message: { content: "stop checks failed", role: "user", timestamp: 0 },
   parentId: null,
   timestamp: "2026-10-04T09:37:27.127Z",
-  message: { role: "user", content: "stop checks failed", timestamp: 0 },
+  type: "message",
 });
 
 const modelChangeEntry: SessionEntry = {
-  type: "model_change",
   id: "model",
-  parentId: null,
-  timestamp: "2026-10-04T09:19:44.270Z",
-  provider: "openai-codex",
   modelId: "gpt-6-luna",
+  parentId: null,
+  provider: "openai-codex",
+  timestamp: "2026-10-04T09:19:44.270Z",
+  type: "model_change",
 };
 
 describe("last turn failure detection", () => {

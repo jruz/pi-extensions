@@ -57,8 +57,8 @@ describe("background fixtures under native Node", () => {
     const execution = execFileAsync(process.execPath, [fastFixture]);
     await expect(execution).rejects.toMatchObject({
       code: 3,
-      stdout: "fast-start\nfast-final\n",
       stderr: "",
+      stdout: "fast-start\nfast-final\n",
     });
   });
 
@@ -98,15 +98,15 @@ describe("background fixtures under native Node", () => {
     const execution = execFileAsync(
       process.execPath,
       [captureFixture, logPath, metadataPath, capacityValue],
-      { timeout: 3000, killSignal: "SIGKILL" },
+      { killSignal: "SIGKILL", timeout: 3000 },
     );
     try {
       if (execution.child.stdin === null)
         throw new Error("capture stdin: required");
       execution.child.stdin.end(data);
       await expect(execution).resolves.toMatchObject({
-        stdout: "",
         stderr: "",
+        stdout: "",
       });
       const firstRead = await readFile(logPath);
       const secondRead = await readFile(logPath);
@@ -140,7 +140,7 @@ describe("background fixtures under native Node", () => {
     const execution = execFileAsync(
       process.execPath,
       [captureFixture, logPath, metadataPath, "4096"],
-      { timeout: 3000, killSignal: "SIGKILL" },
+      { killSignal: "SIGKILL", timeout: 3000 },
     );
     try {
       if (execution.child.stdin === null)
@@ -169,7 +169,7 @@ describe("background fixtures under native Node", () => {
     const execution = execFileAsync(
       process.execPath,
       [workerFixture, outputPath],
-      { timeout: 3000, killSignal: "SIGKILL" },
+      { killSignal: "SIGKILL", timeout: 3000 },
     );
     try {
       if (execution.child.stdin === null)

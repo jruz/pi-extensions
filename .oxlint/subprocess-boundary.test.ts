@@ -6,33 +6,33 @@ import { it } from "node:test";
 
 const cases = [
   {
-    name: "direct spawn",
     code: 'import { spawn } from "node:child_process"; export const child = spawn("true");',
+    name: "direct spawn",
     status: 1,
   },
   {
-    name: "aliased spawn",
     code: 'import { spawn as start } from "child_process"; export const child = start("true");',
+    name: "aliased spawn",
     status: 1,
   },
   {
-    name: "namespace import",
     code: 'import * as subprocess from "node:child_process"; export const child = subprocess.spawn("true");',
+    name: "namespace import",
     status: 1,
   },
   {
-    name: "default import",
     code: 'import subprocess from "node:child_process"; export const child = subprocess.spawn("true");',
+    name: "default import",
     status: 1,
   },
   {
-    name: "shared runner",
     code: 'import { spawnWithDiagnostics } from "../../lib/subprocess.ts"; const diagnostics: Buffer[] = []; export const child = spawnWithDiagnostics("true", [], (chunk) => { diagnostics.push(chunk); });',
+    name: "shared runner",
     status: 0,
   },
   {
-    name: "type-only import",
     code: 'import type { ChildProcess } from "node:child_process"; export type Child = ChildProcess;',
+    name: "type-only import",
     status: 0,
   },
 ];

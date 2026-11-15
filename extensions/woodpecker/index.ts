@@ -53,19 +53,19 @@ const readTarget = (input: unknown): WatchTarget => {
 };
 
 const branchParameter = Type.String({
-  minLength: 1,
   description:
     "Exact Woodpecker branch field. Use either branch or commit, not both.",
+  minLength: 1,
 });
 const commitParameter = Type.String({
-  pattern: "^[a-f0-9]{40}$",
   description:
     "Full commit SHA to watch across push and tag pipelines. Use either commit or branch, not both.",
+  pattern: "^[a-f0-9]{40}$",
 });
 const watchParameters = Type.Object({
-  repo: Type.String({ minLength: 1 }),
   branch: Type.Optional(branchParameter),
   commit: Type.Optional(commitParameter),
+  repo: Type.String({ minLength: 1 }),
 });
 
 export default (pi: ExtensionAPI) => {
@@ -78,7 +78,7 @@ export default (pi: ExtensionAPI) => {
   );
   const notify = (content: string, details: Notification) => {
     pi.sendMessage(
-      { customType: "woodpecker-ci", content, details, display: true },
+      { content, customType: "woodpecker-ci", details, display: true },
       { deliverAs: "followUp", triggerTurn: true },
     );
   };
@@ -86,7 +86,7 @@ export default (pi: ExtensionAPI) => {
   const snapshots = new Map<string, readonly Pipeline[]>();
   const pending = new Map<string, AbortController>();
   const result = (text: string) => ({
-    content: [{ type: "text" as const, text }],
+    content: [{ text, type: "text" as const }],
     details: {},
   });
   const stop = (key: string) => {
@@ -98,11 +98,8 @@ export default (pi: ExtensionAPI) => {
   };
 
   pi.registerTool({
-    name: "woodpecker_watch",
-    label: "Watch CI",
     description:
       "Subscribe this session to Woodpecker CI status changes for a repository and either an exact branch or full commit SHA. Prefer commit after pushing to capture both push and later tag-release pipelines. Branch mode does not match tags. Polls every five seconds over the latest 20 pipelines. Existing pipelines are a baseline, not replayed as alerts. Push success does not imply release success. Subscriptions end on session close or reload.",
-    parameters: watchParameters,
     async execute(_id, { repo, branch, commit }, signal, _onUpdate, ctx) {
       const target = readTarget({ branch, commit });
       const label = formatWatchTarget(target);
@@ -148,7 +145,7 @@ export default (pi: ExtensionAPI) => {
             snapshots.set(key, current);
             if (changes.length > 0)
               await publishUpdates(
-                { run, report: reportError, loading, send: notify },
+                { loading, report: reportError, run, send: notify },
                 repo,
                 changes,
                 controller.signal,
@@ -161,8 +158,8 @@ export default (pi: ExtensionAPI) => {
             stop(key);
             pi.sendMessage(
               {
-                customType: "woodpecker",
                 content: `Woodpecker CI monitoring stopped for ${repo} ${label}: ${reason}. Subscribe again to resume.`,
+                customType: "woodpecker",
                 display: true,
               },
               { deliverAs: "followUp", triggerTurn: true },
@@ -181,15 +178,15 @@ export default (pi: ExtensionAPI) => {
           timers.add(timer);
         };
         subscriptions.set(key, {
-          repo,
-          target,
           controller,
+          repo,
           stop: () => {
             if (ctx.hasUI) ctx.ui.setStatus(loadingKey, undefined);
             controller.abort();
             timers.forEach(clearTimeout);
             timers.clear();
           },
+          target,
         });
         schedule();
         const text = formatWatchBaseline(repo, target, initial);
@@ -209,14 +206,14 @@ export default (pi: ExtensionAPI) => {
         });
       }
     },
+    label: "Watch CI",
+    name: "woodpecker_watch",
+    parameters: watchParameters,
   });
 
   pi.registerTool({
-    name: "woodpecker_unwatch",
-    label: "Unwatch CI",
     description:
       "Stop this session's Woodpecker subscription for a repository and the same branch or commit used to subscribe.",
-    parameters: watchParameters,
     execute(_id, { repo, branch, commit }) {
       const target = readTarget({ branch, commit });
       const key = subscriptionKey(repo, target);
@@ -226,27 +223,30 @@ export default (pi: ExtensionAPI) => {
       );
       return Promise.resolve(response);
     },
+    label: "Unwatch CI",
+    name: "woodpecker_unwatch",
+    parameters: watchParameters,
   });
 
   pi.registerTool({
-    name: "woodpecker_status",
-    label: "CI subscriptions",
     description:
       "List this session's active CI subscriptions and their most recently polled pipeline statuses.",
-    parameters: Type.Object({}),
     execute() {
       const subscriptionsIterator = subscriptions.entries();
       const entries = Array.from(subscriptionsIterator).map(
         ([key, subscription]) => ({
-          repo: subscription.repo,
           [subscription.target.kind]: subscription.target.value,
           pipelines: snapshots.get(key),
+          repo: subscription.repo,
         }),
       );
       const text = JSON.stringify(entries);
       const response = result(text);
       return Promise.resolve(response);
     },
+    label: "CI subscriptions",
+    name: "woodpecker_status",
+    parameters: Type.Object({}),
   });
 
   pi.on("session_shutdown", () => {

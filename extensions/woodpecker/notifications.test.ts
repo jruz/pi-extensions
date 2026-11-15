@@ -3,27 +3,27 @@ import { publishUpdates, type Notification } from "./notifications.ts";
 import type { RunCli } from "./diagnostics.ts";
 
 const failed = {
+  branch: "main",
+  commit: "abc1234567",
   id: 10,
   number: 10,
   status: "failure",
-  branch: "main",
-  commit: "abc1234567",
 };
 const step = {
-  workflow: "build-main",
+  error: "",
+  exitCode: 1,
   name: "BUILD",
   number: 6,
-  exitCode: 1,
-  error: "",
   started: 100,
   stopped: 113,
+  workflow: "build-main",
 };
 const pipelineOutput = (commit: string) =>
   `10\n10\n"failure"\n"main"\n"${commit}"\n"push"\n"refs/heads/main"\n`;
 const dependencies = () => ({
-  run: vi.fn<RunCli>(),
-  report: vi.fn<(message: string) => void>(),
   loading: vi.fn<(active: boolean) => void>(),
+  report: vi.fn<(message: string) => void>(),
+  run: vi.fn<RunCli>(),
   send: vi.fn<(content: string, details: Notification) => void>(),
 });
 const failureRequests = (

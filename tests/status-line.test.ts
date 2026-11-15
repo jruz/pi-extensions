@@ -70,29 +70,29 @@ describe("status line formatting", () => {
     const futureGpt = modelNameParts("gpt-6-astra");
     const claude = modelNameParts("claude");
     expect(terra).toEqual({
+      color: "accent",
       prefix: "gpt-5.6-",
       suffix: "terra",
-      color: "accent",
     });
     expect(sol).toEqual({
+      color: "warning",
       prefix: "gpt-5.6-",
       suffix: "sol",
-      color: "warning",
     });
     expect(olderGpt).toEqual({
+      color: "purple",
       prefix: "gpt-4o-",
       suffix: "mini",
-      color: "purple",
     });
     expect(futureGpt).toEqual({
+      color: "error",
       prefix: "gpt-6-",
       suffix: "astra",
-      color: "error",
     });
     expect(claude).toEqual({
+      color: "purple",
       prefix: "claude",
       suffix: "",
-      color: "purple",
     });
   });
 
@@ -141,8 +141,8 @@ describe("status line formatting", () => {
       limits: {
         fiveHour: {
           remainingPercent: 80,
-          windowMinutes: 300,
           resetsAt: 1_700_000_000,
+          windowMinutes: 300,
         },
         weekly: {},
       },
@@ -152,13 +152,13 @@ describe("status line formatting", () => {
       limits: {
         fiveHour: {
           remainingPercent: 80,
-          windowMinutes: 300,
           resetsAt: 1_700_000_000,
+          windowMinutes: 300,
         },
         weekly: {
           remainingPercent: undefined,
-          windowMinutes: undefined,
           resetsAt: undefined,
+          windowMinutes: undefined,
         },
       },
     });
@@ -168,14 +168,14 @@ describe("status line formatting", () => {
     const payload = {
       rate_limit: {
         primary_window: {
-          used_percent: 20,
           limit_window_seconds: 18_000,
           reset_at: 1_700_000_000,
+          used_percent: 20,
         },
         secondary_window: {
-          used_percent: 40,
           limit_window_seconds: 604_800,
           reset_at: 1_700_000_000,
+          used_percent: 40,
         },
       },
     };
@@ -183,13 +183,13 @@ describe("status line formatting", () => {
     const expected = {
       fiveHour: {
         remainingPercent: 80,
-        windowMinutes: 300,
         resetsAt: 1_700_000_000,
+        windowMinutes: 300,
       },
       weekly: {
         remainingPercent: 60,
-        windowMinutes: 10_080,
         resetsAt: 1_700_000_000,
+        windowMinutes: 10_080,
       },
     };
     const invalidPayload = { rate_limit: "invalid" };
@@ -201,13 +201,13 @@ describe("status line formatting", () => {
     expect(unavailableLimits).toEqual({
       fiveHour: {
         remainingPercent: undefined,
-        windowMinutes: undefined,
         resetsAt: undefined,
+        windowMinutes: undefined,
       },
       weekly: {
         remainingPercent: undefined,
-        windowMinutes: undefined,
         resetsAt: undefined,
+        windowMinutes: undefined,
       },
     });
     expect(parseInvalidPayload).toThrow("usage rate limit is not an object");

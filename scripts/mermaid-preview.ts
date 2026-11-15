@@ -176,8 +176,6 @@ const html = `<!DOCTYPE html>
 </html>`;
 
 const server = Bun.serve({
-  hostname: "0.0.0.0",
-  port: 0,
   fetch: async (req) => {
     try {
       const url = new URL(req.url);
@@ -205,6 +203,8 @@ const server = Bun.serve({
       return new Response("preview request failed", { status: 500 });
     }
   },
+  hostname: "0.0.0.0",
+  port: 0,
 });
 
 log.ok(`mermaid preview: http://127.0.0.1:${server.port}`);

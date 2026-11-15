@@ -72,10 +72,7 @@ const createProbe =
   (target: string, args: Args, probes: Probe[]): ExtensionFactory =>
   (pi: ExtensionAPI) => {
     pi.registerTool({
-      name: "probe",
-      label: "Probe",
       description: "Call another tool the way codemode scripts do.",
-      parameters: Type.Object({}),
       async execute(_id, _params, _signal, _onUpdate, ctx) {
         const callable = ctx.tools.map((tool) => tool.name);
         const outcome = await ctx.executeTool(target, args);
@@ -83,8 +80,11 @@ const createProbe =
           .flatMap((part) => (part.type === "text" ? [part.text] : []))
           .join("\n");
         probes.push({ callable, nested });
-        return { content: [{ type: "text", text: nested }], details: {} };
+        return { content: [{ text: nested, type: "text" }], details: {} };
       },
+      label: "Probe",
+      name: "probe",
+      parameters: Type.Object({}),
     });
   };
 
@@ -100,15 +100,15 @@ const start = async (extensionFactories: ExtensionFactory[]) => {
     retry: { enabled: false },
   });
   const resources = new DefaultResourceLoader({
-    cwd: directory,
     agentDir: directory,
-    settingsManager,
-    noExtensions: true,
-    noSkills: true,
-    noPromptTemplates: true,
-    noThemes: true,
-    noContextFiles: true,
+    cwd: directory,
     extensionFactories,
+    noContextFiles: true,
+    noExtensions: true,
+    noPromptTemplates: true,
+    noSkills: true,
+    noThemes: true,
+    settingsManager,
   });
   await resources.reload();
   const modelRuntime = await ModelRuntime.create({
@@ -120,27 +120,27 @@ const start = async (extensionFactories: ExtensionFactory[]) => {
   const faux = fauxProvider({ models: [{ id: "exposure-test" }] });
   modelRuntime.registerNativeProvider(faux.provider);
   const { session } = await createAgentSession({
-    cwd: directory,
     agentDir: directory,
-    modelRuntime,
+    cwd: directory,
     model: faux.getModel(),
+    modelRuntime,
     resourceLoader: resources,
-    settingsManager,
     sessionManager: SessionManager.inMemory(directory),
+    settingsManager,
   });
   const runner = session.extensionRunner;
   const errors = vi.fn<(error: ExtensionError) => void>();
   await session.bindExtensions({
     mode: "tui",
-    uiContext: runner.getUIContext(),
     onError: errors,
+    uiContext: runner.getUIContext(),
   });
   cleanups.push(async () => {
-    await runner.emit({ type: "session_shutdown", reason: "quit" });
+    await runner.emit({ reason: "quit", type: "session_shutdown" });
     session.dispose();
-    await rm(directory, { recursive: true, force: true });
+    await rm(directory, { force: true, recursive: true });
   });
-  return { session, faux, errors };
+  return { errors, faux, session };
 };
 
 const toolResults = (session: AgentSession, name: string) =>
@@ -169,7 +169,7 @@ const run = async (
   ]);
   await session.prompt("probe exposure");
   const results = toolResults(session, target);
-  return { probes, results, session, errors };
+  return { errors, probes, results, session };
 };
 
 const startPeer = async () => {
@@ -186,15 +186,15 @@ const startPeer = async () => {
   });
   const runtime = createRuntime({
     agent,
-    transport,
-    isIdle: () => true,
     deliver: (text) => {
       delivered.push(text);
     },
+    isIdle: () => true,
+    transport,
   });
   await runtime.start();
   cleanups.push(runtime.stop);
-  return { agent, runtime, delivered };
+  return { agent, delivered, runtime };
 };
 
 afterEach(async () => {
@@ -205,16 +205,16 @@ afterEach(async () => {
 });
 
 afterAll(async () => {
-  await rm(home, { recursive: true, force: true });
+  await rm(home, { force: true, recursive: true });
 });
 
 describe("tool exposure", () => {
   it.each([
-    { name: "messenger", extension: messenger, args: { action: "me" } },
+    { args: { action: "me" }, extension: messenger, name: "messenger" },
     {
-      name: "chat_preview",
-      extension: chatPreview,
       args: { state: "running" },
+      extension: chatPreview,
+      name: "chat_preview",
     },
   ])(
     "declares $name to the model but keeps it out of nested calls",
@@ -230,7 +230,7 @@ describe("tool exposure", () => {
   );
 
   it("rejects nested messenger sends before the runtime sees them", async () => {
-    const send = { action: "send", to: randomUUID(), message: "hi" };
+    const send = { action: "send", message: "hi", to: randomUUID() };
     const runtime = await run(messenger, "messenger", send, { action: "me" });
     expect(runtime.probes[0]?.nested).toMatch(/not found/i);
     expect(sends.calls).toEqual([]);
@@ -241,7 +241,7 @@ describe("tool exposure", () => {
     const { session, faux, errors } = await start([messenger]);
     const sessionId = session.sessionManager.getSessionId();
     const draft = (message: string) =>
-      callTool("messenger", { action: "send", to: peer.agent.id, message });
+      callTool("messenger", { action: "send", message, to: peer.agent.id });
     faux.setResponses([
       async () => {
         await peer.runtime.send(

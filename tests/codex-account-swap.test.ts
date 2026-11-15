@@ -37,11 +37,11 @@ vi.mock("../extensions/shared/log.ts", () => ({
 const log = vi.mocked(logError);
 const cleanups: (() => Promise<void>)[] = [];
 const credential = (account: string): OAuthCredential => ({
-  type: "oauth",
   access: `synthetic-${account}`,
-  refresh: `synthetic-refresh-${account}`,
-  expires: Date.now() + 3_600_000,
   accountId: account,
+  expires: Date.now() + 3_600_000,
+  refresh: `synthetic-refresh-${account}`,
+  type: "oauth",
 });
 
 const readAuth = async (path: string): Promise<unknown> => {
@@ -70,7 +70,7 @@ const setup = async (
     ...firstAccount,
     refresh: "synthetic-rotated-account-1-refresh",
   };
-  const unrelated = { type: "api_key", key: "synthetic-other-provider" };
+  const unrelated = { key: "synthetic-other-provider", type: "api_key" };
   const accounts = { [names[0]]: firstAccount, [names[1]]: secondAccount };
   const initial = {
     "codex-account-swap": accounts,
@@ -80,21 +80,21 @@ const setup = async (
   const content = JSON.stringify(initial);
   await writeFile(authPath, content, { mode: 0o600 });
   const settingsManager = SettingsManager.inMemory({
+    compaction: { enabled: false },
     defaultProvider: "openai-codex",
     defaultThinkingLevel: "high",
-    compaction: { enabled: false },
     retry: { enabled: false },
   });
   const resourceLoader = new DefaultResourceLoader({
-    cwd: directory,
     agentDir: directory,
-    settingsManager,
-    noExtensions: true,
-    noSkills: true,
-    noPromptTemplates: true,
-    noThemes: true,
-    noContextFiles: true,
+    cwd: directory,
     extensionFactories: [codexAccountSwap],
+    noContextFiles: true,
+    noExtensions: true,
+    noPromptTemplates: true,
+    noSkills: true,
+    noThemes: true,
+    settingsManager,
   });
   await resourceLoader.reload();
   const modelRuntime = await ModelRuntime.create({
@@ -107,13 +107,13 @@ const setup = async (
   if (model === undefined) throw new Error("test model unavailable: Codex");
   const sessionManager = SessionManager.inMemory(directory);
   const { session } = await createAgentSession({
-    cwd: directory,
     agentDir: directory,
-    modelRuntime,
+    cwd: directory,
     model,
+    modelRuntime,
     resourceLoader,
-    settingsManager,
     sessionManager,
+    settingsManager,
     tools: [],
   });
   const errors = vi.fn<(error: ExtensionError) => void>();
@@ -126,20 +126,20 @@ const setup = async (
   });
   cleanups.push(async () => {
     session.dispose();
-    await rm(directory, { recursive: true, force: true });
+    await rm(directory, { force: true, recursive: true });
   });
   return {
-    session,
-    modelRuntime,
-    settingsManager,
-    directory,
     authPath,
-    initial,
-    firstAccount,
-    secondAccount,
+    directory,
     errors,
+    firstAccount,
+    initial,
+    modelRuntime,
     notify,
+    secondAccount,
+    session,
     setStatus,
+    settingsManager,
   };
 };
 
@@ -274,8 +274,8 @@ describe("Codex account swap", () => {
   it("fails clearly when a named credential is missing", async () => {
     const runtime = await setup();
     const incomplete = {
-      "openai-codex": runtime.firstAccount,
       "codex-account-swap": { "account-1": runtime.firstAccount },
+      "openai-codex": runtime.firstAccount,
     };
     const content = JSON.stringify(incomplete);
     await writeFile(runtime.authPath, content);
@@ -317,8 +317,8 @@ describe("Codex account swap", () => {
     });
     await writeFile(runtime.authPath, invalid);
     await runtime.session.extensionRunner.emit({
-      type: "session_start",
       reason: "startup",
+      type: "session_start",
     });
     expect(runtime.setStatus).toHaveBeenLastCalledWith(
       "codex-account-swap",

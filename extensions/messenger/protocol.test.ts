@@ -28,12 +28,12 @@ describe("messenger peers", () => {
   it("formats replies using the sender path carried by the message", () => {
     const text = formatReceived({
       id: "11111111-1111-4111-8111-111111111111",
+      message: "ACK",
+      priority: "normal",
+      recipientId: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+      replyTo: "22222222-2222-4222-8222-222222222222",
       senderId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
       senderProjectPath: "/project/A",
-      recipientId: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
-      priority: "normal",
-      message: "ACK",
-      replyTo: "22222222-2222-4222-8222-222222222222",
       sentAt: 0,
     });
     expect(text).toContain("project: /project/A");

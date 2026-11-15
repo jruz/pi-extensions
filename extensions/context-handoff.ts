@@ -65,16 +65,16 @@ export default function (pi: ExtensionAPI): void {
       "warning",
     );
     return {
+      continue: true,
       entries: [
         ...event.entries,
         {
-          type: "custom_message",
-          customType: "context-handoff",
           content: HANDOFF_MESSAGE,
+          customType: "context-handoff",
           display: true,
+          type: "custom_message",
         },
       ],
-      continue: true,
     };
   });
 

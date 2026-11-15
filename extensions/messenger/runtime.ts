@@ -64,8 +64,8 @@ export const createRuntime = (options: RuntimeOptions) => {
   const history = new Map<MessageId, MessageRecord>();
   const deliveries = new Set<Delivery>();
   const state: { phase: "running" | "stopped"; introduced: boolean } = {
-    phase: "running",
     introduced: false,
+    phase: "running",
   };
 
   const identity = (): AgentRecord => ({
@@ -108,8 +108,8 @@ export const createRuntime = (options: RuntimeOptions) => {
     batch.forEach(({ message }) => inbox.set(message.id, { message, stage }));
     const delivery = {
       ids: batch.map((entry) => entry.message.id),
-      text,
       source,
+      text,
     };
     deliveries.add(delivery);
     return delivery;
@@ -144,7 +144,7 @@ export const createRuntime = (options: RuntimeOptions) => {
         delivery.source === "tool" &&
         delivery.ids.some((id) => inbox.get(id)?.stage !== "read"),
     );
-    if (queued !== undefined) return { type: "withheld", text: queued.text };
+    if (queued !== undefined) return { text: queued.text, type: "withheld" };
     const unread = inboxEntries().filter((entry) => entry.stage !== "read");
     const batch = chronological(unread);
     if (batch.length === 0) return undefined;
@@ -161,12 +161,16 @@ export const createRuntime = (options: RuntimeOptions) => {
     const first = prepared[0];
     if (first === undefined)
       throw new Error("messenger: empty checkpoint batch");
-    return { type: "withheld", text: first.text };
+    return { text: first.text, type: "withheld" };
   };
 
   return {
+    history: (limit: number, offset: number): string => {
+      const entries = history.values();
+      const messages = Array.from(entries);
+      return formatHistory(agent.id, messages, limit, offset);
+    },
     identity,
-    start: (): Promise<void> => transport.start(identity, receive),
     peers: async (): Promise<readonly AgentRecord[]> => {
       running();
       const agents = await transport.peers();
@@ -217,12 +221,12 @@ export const createRuntime = (options: RuntimeOptions) => {
         throw new Error("messenger: cannot send to yourself");
       const message = messageSchema.parse({
         id: randomUUID(),
-        senderId: agent.id,
-        senderProjectPath: agent.projectPath,
-        recipientId: recipient,
         message: text,
         priority,
+        recipientId: recipient,
         replyTo,
+        senderId: agent.id,
+        senderProjectPath: agent.projectPath,
         sentAt: Date.now(),
       });
       const initial = checkpoint();
@@ -235,13 +239,9 @@ export const createRuntime = (options: RuntimeOptions) => {
       await transport.send(target, message);
       running();
       history.set(message.id, message);
-      return { type: "sent", text: formatSent(target, text, priority) };
+      return { text: formatSent(target, text, priority), type: "sent" };
     },
-    history: (limit: number, offset: number): string => {
-      const entries = history.values();
-      const messages = Array.from(entries);
-      return formatHistory(agent.id, messages, limit, offset);
-    },
+    start: (): Promise<void> => transport.start(identity, receive),
     stop: async (): Promise<void> => {
       if (state.phase === "stopped") return;
       state.phase = "stopped";
