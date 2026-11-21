@@ -15,7 +15,7 @@
   },
   "devDependencies": {
     "@earendil-works/pi-ai": "1.4.0",
-    "@earendil-works/pi-coding-agent": "1.4.0",
+    "@earendil-works/pi-coding-agent": "1.5.2",
     "@earendil-works/pi-tui": "1.5.2",
     "@oxlint/plugins": "1.90.0",
     "@tsconfig/strictest": "2.0.9",
